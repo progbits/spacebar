@@ -173,6 +173,12 @@ let print_declaration (x : declaration) =
   | Some x' -> List.iter print_init_declarator x'
   | None -> Printf.printf "No init_declarator_list\n"
 
+(* Pretty print `block_item\ *)
+let print_block_item (x: block_item) =
+  match x with
+  | Declaration x' -> print_declaration x'
+  | Statement x' -> Printf.printf "statement: %s\n" x'
+
 (* Pretty print `external_declaration` *)
 let print_external_declaration x =
   Printf.printf "ExternalDeclaration\n" ;
@@ -185,6 +191,11 @@ let print_external_declaration x =
         match x'.declaration_list with
         | Some x'' -> List.iter print_declaration x''
         | None -> ()
+      in
+      let _ =
+        match x'.compound_statement with
+        | Some x'' -> List.iter print_block_item x''
+        | None -> Printf.printf "Empty compound_statement"
       in
       ()
   | Declaration x' -> print_declaration x'
