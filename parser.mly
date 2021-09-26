@@ -54,31 +54,41 @@
 %token <string> STRING_LITERAL
 
 // Punctuators.
-%token LBRACE "{"
-%token RBRACE "}"
-%token LPAREN "("
-%token RPAREN ")"
 %token LBRACKET "["
 %token RBRACKET "]"
-%token DOT
-%token STAR
-%token PLUS
-%token MINUS
-%token SLASH
-%token MOD
-%token LT
-%token GT
-%token LTE
-%token GTE
-%token EQ
-%token NEQ
-%token COLON
+%token LPAREN "("
+%token RPAREN ")"
+%token LBRACE "{"
+%token RBRACE "}"
+%token DOT "."
+%token STAR "*"
+%token PLUS "+"
+%token MINUS "-"
+%token SLASH "/"
+%token MOD "%"
+%token LSHIFT "<<"
+%token RSHIFT ">>"
+%token LT "<"
+%token GT ">"
+%token LTE "<="
+%token GTE ">="
+%token EQ "=="
+%token NEQ "!="
+%token COLON ":"
 %token SEMICOLON ";"
 %token ELLIPSIS "..."
-%token ASSIGN
+%token ASSIGN "="
 %token COMMA ","
 
 %token EOF
+
+%left "(" ")" "[" "]" "."
+%left "*" "/" "%"
+%left ">" ">=" "<" "<="
+%left "==" "!="
+%left ","
+// %left "&&"
+// %left "||"
 
 // Entrypoint.
 %start <external_declaration list> translation_unit
@@ -92,7 +102,7 @@ external_declaration:
     | function_definition { FunctionDefinition $1 }
     | declaration { Declaration $1 }
 
-// 6.7.6 Declarators
+(* 6.7.6 *)
 declarator:
     | option(pointer) direct_declarator { 
         { pointer=$1; direct_declarator=$2 }
@@ -103,6 +113,9 @@ direct_declarator:
     | "("; x = declarator; ")" { Ast.Declarator x }
     | x = direct_declarator; "("; y = parameter_type_list; ")" { 
         Ast.FunctionDeclarator { direct_declarator=x; parameter_list=y }
+    }
+    | x = direct_declarator; "("; option(identifier_list); ")" { 
+        Ast.FunctionDeclarator { direct_declarator=x; parameter_list=[] }
     }
 
 pointer:
@@ -140,7 +153,7 @@ function_definition:
         { declaration_specifiers=$1
         ; declarator=$2
         ; declaration_list=$3
-        ; compound_statement=None }
+        ; compound_statement=$4 }
     }
 
 declaration_list:
@@ -167,6 +180,7 @@ argument_expression_list:
 // 6.5.3 Unary Operators
 unary_expression:
     | postfix_expression { }
+    | unary_operator cast_expression { }
 
 // 6.7 Declarations
 declaration:
@@ -202,7 +216,7 @@ type_specifier:
     | struct_or_union_specifier { $1 }
 
 struct_or_union_specifier:
-    | struct_or_union option(IDENTIFIER) "[" struct_declaration_list "]" { $1 }
+    | struct_or_union option(IDENTIFIER) "{" struct_declaration_list "}" { $1 }
     | struct_or_union IDENTIFIER { $1 }
 
 struct_or_union:
@@ -235,61 +249,100 @@ function_specifier:
     | INLINE { Inline }
     | NORETURN { NoReturn }
 
-// 6.5.17 Expression
+(* 6.6 *)
+constant_expression:
+    | conditional_expression { }
+
+(* 6.5.17 *)
 expression:
     | assignment_expression { }
     | expression "," assignment_expression { }
 
-// 6.6 Constant expressions
-constant_expression:
-    | conditional_expression { }
+(* 6.5.16 *)
+assignment_operator:
+    | "=" { }
 
+(* 6.5.16 *)
 assignment_expression:
     | conditional_expression { }
+    | unary_expression assignment_operator assignment_expression { }
 
+(* 6.5.15 *)
 conditional_expression:
     | logical_or_expression { }
+    // | logical_or_expression "?" expression ":" conditional_expression { }
 
+(* 6.5.14 *)
 logical_or_expression:
-    | inclusive_or_experssion { }
+    | logical_and_expression { }
+    // | logical_or_expression "||" logical_and_expression { }
 
+(* 6.5.13 *)
+logical_and_expression:
+    | inclusive_or_experssion { }
+    // | logical_and_expression "&&" inclusive_or_experssion { }
+
+(* 6.5.12 *)
 inclusive_or_experssion:
     | exclusive_or_expression { }
+    // | inclusive_or_experssion "|" exclusive_or_expression { }
 
+(* 6.5.11 *)
 exclusive_or_expression:
     | and_expression { }
+    // | exclusive_or_expression "^" and_expression { }
 
+(* 6.5.10 *)
 and_expression:
     | equality_expression { }
+    // | and_expression "&" equality_expression { }
 
+(* 6.5.9 *)
 equality_expression:
     | relational_expression { }
-    | equality_expression EQ relational_expression { }
-    | equality_expression NEQ relational_expression { }
+    | equality_expression "==" relational_expression { }
+    | equality_expression "!=" relational_expression { }
 
+(* 6.5.8 *)
 relational_expression:
     | shift_expression { }
-    | relational_expression LT shift_expression { }
-    | relational_expression GT shift_expression { }
-    | relational_expression LTE shift_expression { }
-    | relational_expression GTE shift_expression { }
+    | relational_expression "<" shift_expression { }
+    | relational_expression ">" shift_expression { }
+    | relational_expression "<=" shift_expression { }
+    | relational_expression ">=" shift_expression { }
 
+(* 6.5.8 *)
 shift_expression:
     | additive_expression { }
+    | shift_expression "<<" additive_expression { }
+    | shift_expression ">>" additive_expression { }
 
+(* 6.5.6 *)
 additive_expression:
     | multiplicative_expression { }
-    | additive_expression PLUS multiplicative_expression { }
-    | additive_expression MINUS multiplicative_expression { }
+    | additive_expression "+" multiplicative_expression { }
+    | additive_expression "-" multiplicative_expression { }
 
+(* 6.5.5 *)
 multiplicative_expression:
     | cast_expression { }
-    | multiplicative_expression STAR cast_expression { }
-    | multiplicative_expression SLASH cast_expression { }
-    | multiplicative_expression MOD cast_expression { }
+    | multiplicative_expression "*" cast_expression { }
+    | multiplicative_expression "/" cast_expression { }
+    | multiplicative_expression "%" cast_expression { }
 
+(* 6.5.4 *)
 cast_expression:
     | unary_expression { }
+    // | "(" type_name ")" cast_expression { }
+
+(* 6.5.3 *)
+unary_operator:
+    // | "&" { }
+    | "*" { }
+    | "+" { }
+    | "-" { }
+    // | "~" { }
+    // | "!" { }
 
 // 6.7.9 Initialization
 initializerr:
@@ -314,11 +367,11 @@ designator:
 
 // 6.8 Statements and blocks
 statement:
-    | labeled_statement { }
-    | compound_statement { }
-    | expression_statement { }
-    | selection_statement { }
-    | iteration_statement { }
+    | labeled_statement { "" }
+    | compound_statement { "" }
+    | expression_statement { "" }
+    | selection_statement { "" }
+    | iteration_statement { "" }
     // | jump_statement { }
 
 labeled_statement:
@@ -327,15 +380,15 @@ labeled_statement:
     | DEFAULT COLON statement { }
 
 compound_statement:
-    | "[" option(block_item_list) "]" { }
+    | "{"; x = option(block_item_list); "}" { x }
 
 block_item_list:
-    | block_item { }
-    | block_item_list block_item { }
+    | block_item { [$1] }
+    | block_item_list block_item { $2 :: $1 }
 
 block_item:
-    | declaration { }
-    | statement { }
+    | declaration { Ast.Declaration $1 }
+    | statement { Ast.Statement "" }
 
 expression_statement:
     | option(expression) ";" { }

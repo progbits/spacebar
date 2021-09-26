@@ -46,11 +46,13 @@ type declaration =
   { declaration_specifiers: declaration_specifiers
   ; init_declarator_list: init_declarator list option }
 
+type block_item = Declaration of declaration | Statement of string
+
 type function_definition =
   { declaration_specifiers: declaration_specifiers
   ; declarator: declarator
   ; declaration_list: declaration list option
-  ; compound_statement: string option }
+  ; compound_statement: block_item list option }
 
 type external_declaration =
   | FunctionDefinition of function_definition
@@ -64,9 +66,15 @@ val print_declaration_specifiers : declaration_specifiers -> unit
 
 val print_pointer : pointer -> unit
 
+val print_direct_declarator : direct_declarator -> unit
+
 val print_declarator : declarator -> unit
 
+val print_parameter_declaration : parameter_declaration -> unit
+
 val print_init_declarator : init_declarator -> unit
+
+val print_declaration : declaration -> unit
 
 val print_external_declaration : external_declaration -> unit
 

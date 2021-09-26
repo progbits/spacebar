@@ -70,12 +70,12 @@ rule token = parse
         | Some keyword -> keyword
         | None -> IDENTIFIER id
     }
-    | "[" { LBRACE }
-    | "]" { RBRACE }
+    | "[" { LBRACKET }
+    | "]" { RBRACKET }
     | "(" { LPAREN }
     | ")" { RPAREN }
-    | "{" { LBRACKET }
-    | "}" { RBRACKET }
+    | "{" { LBRACE }
+    | "}" { RBRACE }
     | "." { DOT }
     (* | "->" ->
     | "++" ->

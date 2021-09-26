@@ -56,12 +56,15 @@ type declaration =
   { declaration_specifiers: declaration_specifiers
   ; init_declarator_list: init_declarator list option }
 
+(* 6.8.2 *)
+type block_item = Declaration of declaration | Statement of string
+
 (* 6.9.1 *)
 type function_definition =
   { declaration_specifiers: declaration_specifiers
   ; declarator: declarator
   ; declaration_list: declaration list option
-  ; compound_statement: string option }
+  ; compound_statement: block_item list option }
 
 (* 6.9 *)
 type external_declaration =
