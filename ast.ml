@@ -189,7 +189,7 @@ let print_declaration (x : declaration) =
   | Some x' -> List.iter print_init_declarator x'
   | None -> Printf.printf "No init_declarator_list\n"
 
-(* Pretty print `block_item\ *)
+(* Pretty print `block_item` *)
 let print_block_item (x : block_item) =
   match x with
   | Declaration x' -> print_declaration x'
