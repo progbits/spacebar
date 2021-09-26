@@ -17,9 +17,9 @@
 %token ENUM
 %token EXTERN
 %token FLOAT
-%token FOR
+%token FOR "for"
 %token GOTO
-%token IF
+%token IF "if"
 %token INLINE
 %token INT
 %token LONG
@@ -84,6 +84,7 @@
 
 %left "(" ")" "[" "]" "."
 %left "*" "/" "%"
+%left "+" "-"
 %left ">" ">=" "<" "<="
 %left "==" "!="
 %left ","
@@ -161,26 +162,26 @@ declaration_list:
     | declaration_list declaration { $2 :: $1 }
 
 primary_expression:
-    | IDENTIFIER { }
-    | CONSTANT { }
-    | STRING_LITERAL { }
-    | "(" expression ")" { }
+    | IDENTIFIER { Ast.Identifier $1 }
+    | CONSTANT { Ast.Constant $1 }
+    | STRING_LITERAL { Ast.StringLiteral $1 }
+    | "("; expression; ")" { Ast.Expression "implement this!" }
     // | generic_selection { }
 
 postfix_expression:
-    | primary_expression { }
-    | postfix_expression "[" expression "]" { }
-    | postfix_expression "(" option(argument_expression_list) ")" { }
-    | postfix_expression DOT IDENTIFIER { }
+    | primary_expression { $1 }
+    // | postfix_expression "[" expression "]" { }
+    // | postfix_expression "(" option(argument_expression_list) ")" { }
+    // | postfix_expression DOT IDENTIFIER { }
 
 argument_expression_list:
-    | assignment_expression { }
-    | argument_expression_list "," assignment_expression { }
+    | assignment_expression { $1 }
+    // | argument_expression_list "," assignment_expression { }
 
 // 6.5.3 Unary Operators
 unary_expression:
-    | postfix_expression { }
-    | unary_operator cast_expression { }
+    | postfix_expression { $1 }
+    // | unary_operator cast_expression { }
 
 // 6.7 Declarations
 declaration:
@@ -205,8 +206,8 @@ init_declarator_list:
 
 init_declarator:
     | declarator { { declarator=$1; _initializer=None } }
-    | declarator; ASSIGN; initializerr { 
-        { declarator=$1; _initializer=None }
+    | x = declarator; "="; y = initializerr { 
+        { declarator=x; _initializer=Some y }
     }
 
 type_specifier:
@@ -255,8 +256,8 @@ constant_expression:
 
 (* 6.5.17 *)
 expression:
-    | assignment_expression { }
-    | expression "," assignment_expression { }
+    | assignment_expression { $1 }
+    // | expression "," assignment_expression { }
 
 (* 6.5.16 *)
 assignment_operator:
@@ -264,75 +265,75 @@ assignment_operator:
 
 (* 6.5.16 *)
 assignment_expression:
-    | conditional_expression { }
-    | unary_expression assignment_operator assignment_expression { }
+    | conditional_expression { $1 }
+    // | unary_expression assignment_operator assignment_expression { }
 
 (* 6.5.15 *)
 conditional_expression:
-    | logical_or_expression { }
+    | logical_or_expression { $1 }
     // | logical_or_expression "?" expression ":" conditional_expression { }
 
 (* 6.5.14 *)
 logical_or_expression:
-    | logical_and_expression { }
+    | logical_and_expression { $1 }
     // | logical_or_expression "||" logical_and_expression { }
 
 (* 6.5.13 *)
 logical_and_expression:
-    | inclusive_or_experssion { }
+    | inclusive_or_experssion { $1 }
     // | logical_and_expression "&&" inclusive_or_experssion { }
 
 (* 6.5.12 *)
 inclusive_or_experssion:
-    | exclusive_or_expression { }
+    | exclusive_or_expression { $1 }
     // | inclusive_or_experssion "|" exclusive_or_expression { }
 
 (* 6.5.11 *)
 exclusive_or_expression:
-    | and_expression { }
+    | and_expression { $1 }
     // | exclusive_or_expression "^" and_expression { }
 
 (* 6.5.10 *)
 and_expression:
-    | equality_expression { }
+    | equality_expression { $1 }
     // | and_expression "&" equality_expression { }
 
 (* 6.5.9 *)
 equality_expression:
-    | relational_expression { }
-    | equality_expression "==" relational_expression { }
-    | equality_expression "!=" relational_expression { }
+    | relational_expression { $1 }
+    // | equality_expression "==" relational_expression { }
+    // | equality_expression "!=" relational_expression { }
 
 (* 6.5.8 *)
 relational_expression:
-    | shift_expression { }
-    | relational_expression "<" shift_expression { }
-    | relational_expression ">" shift_expression { }
-    | relational_expression "<=" shift_expression { }
-    | relational_expression ">=" shift_expression { }
+    | shift_expression { $1 }
+    // | relational_expression "<" shift_expression { }
+    // | relational_expression ">" shift_expression { }
+    // | relational_expression "<=" shift_expression { }
+    // | relational_expression ">=" shift_expression { }
 
 (* 6.5.8 *)
 shift_expression:
-    | additive_expression { }
-    | shift_expression "<<" additive_expression { }
-    | shift_expression ">>" additive_expression { }
+    | additive_expression { $1 }
+    // | shift_expression "<<" additive_expression { }
+    // | shift_expression ">>" additive_expression { }
 
 (* 6.5.6 *)
 additive_expression:
-    | multiplicative_expression { }
-    | additive_expression "+" multiplicative_expression { }
-    | additive_expression "-" multiplicative_expression { }
+    | multiplicative_expression { $1 }
+    // | additive_expression "+" multiplicative_expression { }
+    // | additive_expression "-" multiplicative_expression { }
 
 (* 6.5.5 *)
 multiplicative_expression:
-    | cast_expression { }
-    | multiplicative_expression "*" cast_expression { }
-    | multiplicative_expression "/" cast_expression { }
-    | multiplicative_expression "%" cast_expression { }
+    | cast_expression { $1 }
+    // | multiplicative_expression "*" cast_expression { }
+    // | multiplicative_expression "/" cast_expression { }
+    // | multiplicative_expression "%" cast_expression { }
 
 (* 6.5.4 *)
 cast_expression:
-    | unary_expression { }
+    | unary_expression { $1 }
     // | "(" type_name ")" cast_expression { }
 
 (* 6.5.3 *)
@@ -346,9 +347,9 @@ unary_operator:
 
 // 6.7.9 Initialization
 initializerr:
-    | assignment_expression { }
-    | "{" initializer_list "}" { }
-    | "{" initializer_list "," "}" { }
+    | assignment_expression { $1 }
+    // | "{" initializer_list "}" { }
+    // | "{" initializer_list "," "}" { }
 
 initializer_list:
     | option(designation) initializerr { }

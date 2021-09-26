@@ -40,7 +40,15 @@ and direct_declarator =
 and parameter_declaration =
   {declaration_specifiers: declaration_specifiers; declarator: declarator}
 
-type init_declarator = {declarator: declarator; _initializer: string option}
+type primary_expression =
+  | Identifier of string
+  | Constant of int
+  | StringLiteral of string
+  | Expression of string
+  | FunctionCallExpression of string
+
+type init_declarator =
+  {declarator: declarator; _initializer: primary_expression option}
 
 type declaration =
   { declaration_specifiers: declaration_specifiers
@@ -75,6 +83,8 @@ val print_parameter_declaration : parameter_declaration -> unit
 val print_init_declarator : init_declarator -> unit
 
 val print_declaration : declaration -> unit
+
+val print_block_item : block_item -> unit
 
 val print_external_declaration : external_declaration -> unit
 

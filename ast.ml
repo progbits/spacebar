@@ -49,8 +49,17 @@ and direct_declarator =
 and parameter_declaration =
   {declaration_specifiers: declaration_specifiers; declarator: declarator}
 
+(* 6.5.1 *)
+type primary_expression =
+  | Identifier of string
+  | Constant of int
+  | StringLiteral of string
+  | Expression of string
+  | FunctionCallExpression of string
+
 (* 6.7 *)
-type init_declarator = {declarator: declarator; _initializer: string option}
+type init_declarator =
+  {declarator: declarator; _initializer: primary_expression option}
 
 type declaration =
   { declaration_specifiers: declaration_specifiers
@@ -135,7 +144,7 @@ let rec print_pointer p =
   ()
 
 (* Pretty print `direct_declarator` *)
-let rec print_direct_declarator x =
+let rec print_direct_declarator (x : direct_declarator) =
   match x with
   | Identifier x' -> Printf.printf "%s\n" x'
   | FunctionDeclarator x' ->
@@ -161,8 +170,15 @@ and print_init_declarator (x : init_declarator) =
   print_declarator x.declarator ;
   let _ =
     match x._initializer with
-    | Some x' -> Printf.printf "_initializer: %s\n" x'
-    | None -> ()
+    | Some x' -> (
+      match x' with
+      | Identifier x'' -> Printf.printf "Identifier: %s\n" x''
+      | Constant x'' -> Printf.printf "Constant: %d\n" x''
+      | StringLiteral x'' -> Printf.printf "StringLiteral: %s\n" x''
+      | Expression x'' -> Printf.printf "Expression: %s\n" x''
+      | FunctionCallExpression x'' ->
+          Printf.printf "FunctionCallExpression: %s\n" x'' )
+    | None -> Printf.printf "No initializer!\n"
   in
   ()
 
@@ -174,7 +190,7 @@ let print_declaration (x : declaration) =
   | None -> Printf.printf "No init_declarator_list\n"
 
 (* Pretty print `block_item\ *)
-let print_block_item (x: block_item) =
+let print_block_item (x : block_item) =
   match x with
   | Declaration x' -> print_declaration x'
   | Statement x' -> Printf.printf "statement: %s\n" x'
