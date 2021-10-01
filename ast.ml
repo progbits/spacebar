@@ -67,14 +67,14 @@ type declaration =
 
 type statement =
   | LabeledStatement of string
-  | CompoundStatement of string
+  | CompoundStatement of block_item list option
   | ExpressionStatement of string
   | SelectionStatement of string
   | IterationStatement of string
   | JumpStatement of string
 
 (* 6.8.2 *)
-type block_item = Declaration of declaration | Statement of statement
+and block_item = Declaration of declaration | Statement of statement
 
 (* 6.9.1 *)
 type function_definition =

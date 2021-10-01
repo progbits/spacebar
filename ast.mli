@@ -56,13 +56,13 @@ type declaration =
 
 type statement =
   | LabeledStatement of string
-  | CompoundStatement of string
+  | CompoundStatement of block_item list option
   | ExpressionStatement of string
   | SelectionStatement of string
   | IterationStatement of string
   | JumpStatement of string
 
-type block_item = Declaration of declaration | Statement of statement
+and block_item = Declaration of declaration | Statement of statement
 
 type function_definition =
   { declaration_specifiers: declaration_specifiers

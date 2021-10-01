@@ -369,7 +369,7 @@ designator:
 // 6.8 Statements and blocks
 statement:
     | labeled_statement { Ast.LabeledStatement "" }
-    | compound_statement { Ast.CompoundStatement "" }
+    | compound_statement { Ast.CompoundStatement $1 }
     | expression_statement { Ast.ExpressionStatement "" }
     | selection_statement { Ast.SelectionStatement "" }
     | iteration_statement { Ast.IterationStatement "" }
