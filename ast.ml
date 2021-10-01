@@ -65,8 +65,16 @@ type declaration =
   { declaration_specifiers: declaration_specifiers
   ; init_declarator_list: init_declarator list option }
 
+type statement =
+  | LabeledStatement of string
+  | CompoundStatement of string
+  | ExpressionStatement of string
+  | SelectionStatement of string
+  | IterationStatement of string
+  | JumpStatement of string
+
 (* 6.8.2 *)
-type block_item = Declaration of declaration | Statement of string
+type block_item = Declaration of declaration | Statement of statement
 
 (* 6.9.1 *)
 type function_definition =
@@ -193,7 +201,7 @@ let print_declaration (x : declaration) =
 let print_block_item (x : block_item) =
   match x with
   | Declaration x' -> print_declaration x'
-  | Statement x' -> Printf.printf "statement: %s\n" x'
+  | Statement _ -> Printf.printf "statement\n"
 
 (* Pretty print `external_declaration` *)
 let print_external_declaration x =

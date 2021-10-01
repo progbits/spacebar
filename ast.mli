@@ -54,7 +54,15 @@ type declaration =
   { declaration_specifiers: declaration_specifiers
   ; init_declarator_list: init_declarator list option }
 
-type block_item = Declaration of declaration | Statement of string
+type statement =
+  | LabeledStatement of string
+  | CompoundStatement of string
+  | ExpressionStatement of string
+  | SelectionStatement of string
+  | IterationStatement of string
+  | JumpStatement of string
+
+type block_item = Declaration of declaration | Statement of statement
 
 type function_definition =
   { declaration_specifiers: declaration_specifiers

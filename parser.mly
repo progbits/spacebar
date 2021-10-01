@@ -368,11 +368,11 @@ designator:
 
 // 6.8 Statements and blocks
 statement:
-    | labeled_statement { "" }
-    | compound_statement { "" }
-    | expression_statement { "" }
-    | selection_statement { "" }
-    | iteration_statement { "" }
+    | labeled_statement { Ast.LabeledStatement "" }
+    | compound_statement { Ast.CompoundStatement "" }
+    | expression_statement { Ast.ExpressionStatement "" }
+    | selection_statement { Ast.SelectionStatement "" }
+    | iteration_statement { Ast.IterationStatement "" }
     // | jump_statement { }
 
 labeled_statement:
@@ -389,7 +389,7 @@ block_item_list:
 
 block_item:
     | declaration { Ast.Declaration $1 }
-    | statement { Ast.Statement "" }
+    | statement { Ast.Statement $1 }
 
 expression_statement:
     | option(expression) ";" { }
