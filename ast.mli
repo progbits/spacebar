@@ -216,11 +216,25 @@ type statement =
   | LabeledStatement of string
   | CompoundStatement of block_item list option
   | ExpressionStatement of expression option
-  | SelectionStatement of string
-  | IterationStatement of string
+  | SelectionStatement of selection_statement
+  | IterationStatement of iteration_statement
   | JumpStatement of string
 
 and block_item = Declaration of declaration | Statement of statement
+
+and selection_statement =
+  | If of {expression: expression; body: statement}
+  | IfElse of {expression: expression; body: statement; else_body: statement}
+  | Switch of {expression: expression; body: statement}
+
+and iteration_statement =
+  | While of {expression: expression; body: statement}
+  | DoWhile of {body: statement; expression: expression}
+  | For of
+      { init: expression option
+      ; condition: expression option
+      ; iteration: expression option
+      ; body: statement }
 
 type function_definition =
   { declaration_specifiers: declaration_specifiers

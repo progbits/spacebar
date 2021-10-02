@@ -417,8 +417,8 @@ statement:
     | labeled_statement { Ast.LabeledStatement "" }
     | compound_statement { Ast.CompoundStatement $1 }
     | expression_statement { Ast.ExpressionStatement $1 }
-    | selection_statement { Ast.SelectionStatement "" }
-    | iteration_statement { Ast.IterationStatement "" }
+    | selection_statement { Ast.SelectionStatement $1 }
+    | iteration_statement { Ast.IterationStatement $1 }
     // | jump_statement { }
 
 labeled_statement:
@@ -441,13 +441,23 @@ expression_statement:
     | option(expression) ";" { $1 }
 
 selection_statement:
-    | IF "(" expression ")" statement { }
-    | IF "(" expression ")" statement ELSE statement { }
+    | IF; "("; x = expression; ")"; y = statement {
+      Ast.If {expression=x; body=y}
+    }
+    | IF; "("; x = expression; ")"; y = statement; ELSE; z = statement {
+      Ast.IfElse {expression=x; body=y; else_body = z}
+    }
 
 iteration_statement:
-    | WHILE "(" expression ")" statement { }
-    | DO statement WHILE "(" expression ")" ";" { }
-    | FOR "(" option(expression) ";" option(expression) ";" option(expression) ")" statement { }
-    | FOR "(" declaration option(expression) ";" option(expression) ")" statement { }
+    | WHILE; "("; x = expression; ")"; y = statement {
+      Ast.While {expression=x; body=y}
+    }
+    | DO; x = statement; WHILE; "("; y = expression; ")"; ";" {
+      Ast.DoWhile {body=x; expression=y}
+    }
+    | FOR; "("; x = option(expression); ";"; y = option(expression); ";"; z = option(expression); ")"; w = statement {
+      Ast.For {init=x; condition=y; iteration=z; body=w}
+    }
+    (*| FOR "(" declaration option(expression) ";" option(expression) ")" statement { }*)
 
 ;
