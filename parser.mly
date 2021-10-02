@@ -61,9 +61,12 @@
 %token LBRACE "{"
 %token RBRACE "}"
 %token DOT "."
+%token AMPERSAND "&"
 %token STAR "*"
 %token PLUS "+"
 %token MINUS "-"
+%token TILDE "~"
+%token BANG "!"
 %token SLASH "/"
 %token MOD "%"
 %token LSHIFT "<<"
@@ -165,11 +168,11 @@ primary_expression:
     | IDENTIFIER { Ast.Identifier $1 }
     | CONSTANT { Ast.Constant $1 }
     | STRING_LITERAL { Ast.StringLiteral $1 }
-    | "("; expression; ")" { Ast.Expression "implement this!" }
+    // | "("; x = expression; ")" { Ast.Expression x }
     // | generic_selection { }
 
 postfix_expression:
-    | primary_expression { $1 }
+    | primary_expression { Ast.PrimaryExpression $1 }
     // | postfix_expression "[" expression "]" { }
     // | postfix_expression "(" option(argument_expression_list) ")" { }
     // | postfix_expression DOT IDENTIFIER { }
@@ -180,7 +183,7 @@ argument_expression_list:
 
 // 6.5.3 Unary Operators
 unary_expression:
-    | postfix_expression { $1 }
+    | postfix_expression { Ast.PostfixExpression $1 }
     // | unary_operator cast_expression { }
 
 // 6.7 Declarations
@@ -256,7 +259,7 @@ constant_expression:
 
 (* 6.5.17 *)
 expression:
-    | assignment_expression { $1 }
+    | assignment_expression { Ast.AssignmentExpression $1 }
     // | expression "," assignment_expression { }
 
 (* 6.5.16 *)
@@ -265,48 +268,52 @@ assignment_operator:
 
 (* 6.5.16 *)
 assignment_expression:
-    | conditional_expression { $1 }
-    // | unary_expression assignment_operator assignment_expression { }
+    | conditional_expression { Ast.AssignmentConditionalExpression $1 }
+    //| unary_expression assignment_operator assignment_expression {
+    //  {unary_expression=$1;assignment_operator="foo"; assignement_expression=$3}
+    //}
 
 (* 6.5.15 *)
 conditional_expression:
-    | logical_or_expression { $1 }
-    // | logical_or_expression "?" expression ":" conditional_expression { }
+    | logical_or_expression { Ast.ContitionalLogicalOrExpression $1 }
+    //| x = logical_or_expression; "?"; y = expression; ":"; z = conditional_expression {
+    //  {a=x;b=y;c=z}
+    //}
 
 (* 6.5.14 *)
 logical_or_expression:
-    | logical_and_expression { $1 }
+    | logical_and_expression { Ast.LogicalOrLogicalAndExpression $1 }
     // | logical_or_expression "||" logical_and_expression { }
 
 (* 6.5.13 *)
 logical_and_expression:
-    | inclusive_or_experssion { $1 }
+    | inclusive_or_experssion { Ast.InclusiveOrExpression $1 }
     // | logical_and_expression "&&" inclusive_or_experssion { }
 
 (* 6.5.12 *)
 inclusive_or_experssion:
-    | exclusive_or_expression { $1 }
+    | exclusive_or_expression { Ast.ExclusiveOr $1 }
     // | inclusive_or_experssion "|" exclusive_or_expression { }
 
 (* 6.5.11 *)
 exclusive_or_expression:
-    | and_expression { $1 }
+    | and_expression { Ast.AndExpression $1 }
     // | exclusive_or_expression "^" and_expression { }
 
 (* 6.5.10 *)
 and_expression:
-    | equality_expression { $1 }
+    | equality_expression { Ast.EqualityExpression $1 }
     // | and_expression "&" equality_expression { }
 
 (* 6.5.9 *)
 equality_expression:
-    | relational_expression { $1 }
+    | relational_expression { Ast.RelationalExpression $1 }
     // | equality_expression "==" relational_expression { }
     // | equality_expression "!=" relational_expression { }
 
 (* 6.5.8 *)
 relational_expression:
-    | shift_expression { $1 }
+    | shift_expression { Ast.ShiftExpression $1 }
     // | relational_expression "<" shift_expression { }
     // | relational_expression ">" shift_expression { }
     // | relational_expression "<=" shift_expression { }
@@ -314,19 +321,19 @@ relational_expression:
 
 (* 6.5.8 *)
 shift_expression:
-    | additive_expression { $1 }
+    | additive_expression { Ast.AdditiveExpression $1 }
     // | shift_expression "<<" additive_expression { }
     // | shift_expression ">>" additive_expression { }
 
 (* 6.5.6 *)
 additive_expression:
-    | multiplicative_expression { $1 }
+    | multiplicative_expression { Ast.MultiplicativeExpression $1 }
     // | additive_expression "+" multiplicative_expression { }
     // | additive_expression "-" multiplicative_expression { }
 
 (* 6.5.5 *)
 multiplicative_expression:
-    | cast_expression { $1 }
+    | cast_expression { Ast.CastExpression $1 }
     // | multiplicative_expression "*" cast_expression { }
     // | multiplicative_expression "/" cast_expression { }
     // | multiplicative_expression "%" cast_expression { }
@@ -338,12 +345,12 @@ cast_expression:
 
 (* 6.5.3 *)
 unary_operator:
-    // | "&" { }
-    | "*" { }
-    | "+" { }
-    | "-" { }
-    // | "~" { }
-    // | "!" { }
+    | "&" { AddressOf }
+    | "*" { PointerDereference }
+    | "+" { UnaryPlus }
+    | "-" { UnaryMinus }
+    | "~" { UnaryBitwiseNot }
+    | "!" { UnaryNot }
 
 // 6.7.9 Initialization
 initializerr:
@@ -370,7 +377,7 @@ designator:
 statement:
     | labeled_statement { Ast.LabeledStatement "" }
     | compound_statement { Ast.CompoundStatement $1 }
-    | expression_statement { Ast.ExpressionStatement "" }
+    | expression_statement { Ast.ExpressionStatement $1 }
     | selection_statement { Ast.SelectionStatement "" }
     | iteration_statement { Ast.IterationStatement "" }
     // | jump_statement { }
@@ -392,7 +399,7 @@ block_item:
     | statement { Ast.Statement $1 }
 
 expression_statement:
-    | option(expression) ";" { }
+    | option(expression) ";" { $1 }
 
 selection_statement:
     | IF "(" expression ")" statement { }
