@@ -171,6 +171,38 @@ and assignment_expression =
 
 and expression = AssignmentExpression of assignment_expression
 
+val print_unimplemented : unit
+
+val print_primary_expression : primary_expression -> unit
+
+val print_postfix_expression : postfix_expression -> unit
+
+val print_unary_expresssion : unary_expression -> unit
+
+val print_multiplicative_expression : multiplicative_expression -> unit
+
+val print_additive_expression : additive_expression -> unit
+
+val print_shift_expression : shift_expression -> unit
+
+val print_relational_expression : relational_expression -> unit
+
+val print_equality_expression : equality_expression -> unit
+
+val print_and_expression : and_expression -> unit
+
+val print_exclusive_or_expression : exclusive_or_expression -> unit
+
+val print_inclusive_or_expression : inclusive_or_expression -> unit
+
+val print_logical_and_expression : logical_and_expression -> unit
+
+val print_logical_or_expression : logical_or_expression -> unit
+
+val print_conditional_expression : conditional_expression -> unit
+
+val print_assignment_expression : assignment_expression -> unit
+
 type init_declarator =
   {declarator: declarator; _initializer: assignment_expression option}
 

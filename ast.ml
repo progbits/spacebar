@@ -197,6 +197,105 @@ and assignment_expression =
 (* 6.5.17 *)
 and expression = AssignmentExpression of assignment_expression
 
+let print_unimplemented = Printf.printf "implement this!\n"
+
+let print_primary_expression (x : primary_expression) =
+  match x with
+  | Identifier x' -> Printf.printf "%s\n" x'
+  | Constant x' -> Printf.printf "%d\n" x'
+  | StringLiteral x' -> Printf.printf "%s\n" x'
+  | Expression _ -> print_unimplemented
+  | FunctionCallExpression _ -> print_unimplemented
+
+let print_postfix_expression (x : postfix_expression) =
+  match x with
+  | PrimaryExpression x' -> print_primary_expression x'
+  | ArrayAccess _ -> print_unimplemented
+  | FunctionCall _ -> print_unimplemented
+  | MemberAccess _ -> print_unimplemented
+  | PointerMemberAccess _ -> print_unimplemented
+  | PostfixIncrement _ -> print_unimplemented
+  | PostfixDecrement _ -> print_unimplemented
+
+let print_unary_expresssion (x : unary_expression) =
+  match x with
+  | PostfixExpression x' -> print_postfix_expression x'
+  | PrefixIncrement _ -> print_unimplemented
+  | PrefixDecrement _ -> print_unimplemented
+  | UnaryOperator _ -> print_unimplemented
+
+let print_multiplicative_expression (x : multiplicative_expression) =
+  match x with
+  | CastExpression x' -> print_unary_expresssion x'
+  | MultiplicativeProduct _ -> print_unimplemented
+  | MultiplicativeDivision _ -> print_unimplemented
+  | MultiplicativeRemainder _ -> print_unimplemented
+
+let print_additive_expression (x : additive_expression) =
+  match x with
+  | MultiplicativeExpression x' -> print_multiplicative_expression x'
+  | AdditiveAdditionExpression _ -> print_unimplemented
+  | AdditiveSubtractionExpression _ -> print_unimplemented
+
+let print_shift_expression (x : shift_expression) =
+  match x with
+  | AdditiveExpression x' -> print_additive_expression x'
+  | LeftShiftExpression _ -> print_unimplemented
+  | RightShiftExpression _ -> print_unimplemented
+
+let print_relational_expression (x : relational_expression) =
+  match x with
+  | ShiftExpression x' -> print_shift_expression x'
+  | LessThanExpression _ -> print_unimplemented
+  | GreaterThanExpression _ -> print_unimplemented
+  | LessThanEqualThanExpression _ -> print_unimplemented
+  | GreaterThanEqualExpression _ -> print_unimplemented
+
+let print_equality_expression (x : equality_expression) =
+  match x with
+  | RelationalExpression x' -> print_relational_expression x'
+  | EqualToExpression _ -> print_unimplemented
+  | NotEqualToExpression _ -> print_unimplemented
+
+let print_and_expression (x : and_expression) =
+  match x with
+  | EqualityExpression x' -> print_equality_expression x'
+  | BitwiseAndExpression _ -> print_unimplemented
+
+let print_exclusive_or_expression (x : exclusive_or_expression) =
+  match x with
+  | AndExpression x' -> print_and_expression x'
+  | ExclusiveBitwiseOrExpression _ -> print_unimplemented
+
+let print_inclusive_or_expression (x : inclusive_or_expression) =
+  match x with
+  | ExclusiveOr x' -> print_exclusive_or_expression x'
+  | InclusiveBitwiseOrExpression _ -> print_unimplemented
+
+let print_logical_and_expression (x : logical_and_expression) =
+  match x with
+  | InclusiveOrExpression x' -> print_inclusive_or_expression x'
+  | LogicalAndExpression _ -> print_unimplemented
+
+let print_logical_or_expression (x : logical_or_expression) =
+  match x with
+  | LogicalOrLogicalAndExpression x' -> print_logical_and_expression x'
+  | LogicalOrExpression _ -> print_unimplemented
+
+let print_conditional_expression (x : conditional_expression) =
+  match x with
+  | ContitionalLogicalOrExpression x' -> print_logical_or_expression x'
+  | ConditionalExpression _ -> print_unimplemented
+
+let print_assignment_expression (x : assignment_expression) =
+  match x with
+  | AssignmentConditionalExpression x' -> print_conditional_expression x'
+  | AssignmentOperation _ -> print_unimplemented
+
+(*let print_expression (x: expression) =
+  match x with
+  | AssignmentExpression x' -> print_assignment_expression x'*)
+
 (* 6.7 *)
 type init_declarator =
   {declarator: declarator; _initializer: assignment_expression option}
@@ -319,7 +418,11 @@ and print_parameter_declaration x =
 (* Pretty print `init_declarator` *)
 and print_init_declarator (x : init_declarator) =
   Printf.printf "InitDeclarator\n" ;
-  print_declarator x.declarator
+  print_declarator x.declarator ;
+  match x._initializer with
+  | Some x' -> print_assignment_expression x'
+  | None -> Printf.printf "No initializer\n"
+
 (* todo: print assignment_expression *)
 
 (* Pretty print `declaration` *)
