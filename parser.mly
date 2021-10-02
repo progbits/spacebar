@@ -77,6 +77,11 @@
 %token GTE ">="
 %token EQ "=="
 %token NEQ "!="
+%token HAT "^"
+%token PIPE "|"
+%token AND "&&"
+%token OR "||"
+%token CONDITIONAL "?"
 %token COLON ":"
 %token SEMICOLON ";"
 %token ELLIPSIS "..."
@@ -168,12 +173,14 @@ primary_expression:
     | IDENTIFIER { Ast.Identifier $1 }
     | CONSTANT { Ast.Constant $1 }
     | STRING_LITERAL { Ast.StringLiteral $1 }
-    // | "("; x = expression; ")" { Ast.Expression x }
+    | "("; x = expression; ")" { Ast.Expression x }
     // | generic_selection { }
 
 postfix_expression:
     | primary_expression { Ast.PrimaryExpression $1 }
-    // | postfix_expression "[" expression "]" { }
+    | x = postfix_expression; "["; y = expression; "]" {
+        Ast.ArrayAccess {postfix_expression=x; expression=y}
+    }
     // | postfix_expression "(" option(argument_expression_list) ")" { }
     // | postfix_expression DOT IDENTIFIER { }
 
@@ -264,21 +271,21 @@ expression:
 
 (* 6.5.16 *)
 assignment_operator:
-    | "=" { }
+    | "=" { Ast.Assign () }
 
 (* 6.5.16 *)
 assignment_expression:
     | conditional_expression { Ast.AssignmentConditionalExpression $1 }
-    //| unary_expression assignment_operator assignment_expression {
-    //  {unary_expression=$1;assignment_operator="foo"; assignement_expression=$3}
-    //}
+    | unary_expression; assignment_operator; assignment_expression {
+      Ast.AssignmentOperation {unary_expression=$1;assignment_operator=$2; assignment_expression=$3}
+    }
 
 (* 6.5.15 *)
 conditional_expression:
     | logical_or_expression { Ast.ContitionalLogicalOrExpression $1 }
-    //| x = logical_or_expression; "?"; y = expression; ":"; z = conditional_expression {
-    //  {a=x;b=y;c=z}
-    //}
+    | x = logical_or_expression; "?"; y = expression; ":"; z = conditional_expression {
+      Ast.ConditionalExpression {a=x;b=y;c=z}
+    }
 
 (* 6.5.14 *)
 logical_or_expression:
@@ -293,50 +300,82 @@ logical_and_expression:
 (* 6.5.12 *)
 inclusive_or_experssion:
     | exclusive_or_expression { Ast.ExclusiveOr $1 }
-    // | inclusive_or_experssion "|" exclusive_or_expression { }
+    | x = inclusive_or_experssion; "|"; y = exclusive_or_expression {
+      Ast.InclusiveBitwiseOrExpression { inclusive_or_expression=x; exclusive_or_expression=y }
+    }
 
 (* 6.5.11 *)
 exclusive_or_expression:
     | and_expression { Ast.AndExpression $1 }
-    // | exclusive_or_expression "^" and_expression { }
+    | x = exclusive_or_expression; "^"; y = and_expression {
+      Ast.ExclusiveBitwiseOrExpression {exclusive_or_expression=x; and_expression=y}
+    }
 
 (* 6.5.10 *)
 and_expression:
     | equality_expression { Ast.EqualityExpression $1 }
-    // | and_expression "&" equality_expression { }
+    | x = and_expression; "&"; y = equality_expression {
+      Ast.BitwiseAndExpression { and_expression=x; equality_expression=y }
+    }
 
 (* 6.5.9 *)
 equality_expression:
     | relational_expression { Ast.RelationalExpression $1 }
-    // | equality_expression "==" relational_expression { }
-    // | equality_expression "!=" relational_expression { }
+    | x = equality_expression; "=="; y = relational_expression {
+      Ast.EqualToExpression { equality_expression=x; relational_expression=y }
+    }
+    | x = equality_expression; "!="; y = relational_expression {
+      Ast.EqualToExpression { equality_expression=x; relational_expression=y }
+    }
 
 (* 6.5.8 *)
 relational_expression:
     | shift_expression { Ast.ShiftExpression $1 }
-    // | relational_expression "<" shift_expression { }
-    // | relational_expression ">" shift_expression { }
-    // | relational_expression "<=" shift_expression { }
-    // | relational_expression ">=" shift_expression { }
+    | x = relational_expression; "<"; y = shift_expression {
+      Ast.LessThanExpression {relational_expression=x; shift_expression=y}
+    }
+    | x = relational_expression; ">"; y = shift_expression {
+      Ast.LessThanExpression {relational_expression=x; shift_expression=y}
+    }
+    | x = relational_expression; "<="; y = shift_expression {
+      Ast.LessThanExpression {relational_expression=x; shift_expression=y}
+    }
+    | x = relational_expression; ">="; y = shift_expression {
+      Ast.LessThanExpression {relational_expression=x; shift_expression=y}
+    }
 
 (* 6.5.8 *)
 shift_expression:
     | additive_expression { Ast.AdditiveExpression $1 }
-    // | shift_expression "<<" additive_expression { }
-    // | shift_expression ">>" additive_expression { }
+    | x = shift_expression; "<<"; y = additive_expression {
+      Ast.LeftShiftExpression {shift_expression=x; additive_expression=y}
+    }
+    | x = shift_expression; ">>"; y = additive_expression {
+      Ast.RightShiftExpression {shift_expression=x; additive_expression=y}
+    }
 
 (* 6.5.6 *)
 additive_expression:
     | multiplicative_expression { Ast.MultiplicativeExpression $1 }
-    // | additive_expression "+" multiplicative_expression { }
-    // | additive_expression "-" multiplicative_expression { }
+    | x = additive_expression; "+"; y = multiplicative_expression {
+      Ast.AdditiveAdditionExpression {additive_expression=x; multiplicative_expression=y}
+    }
+    | x = additive_expression; "-"; y = multiplicative_expression {
+      Ast.AdditiveAdditionExpression {additive_expression=x; multiplicative_expression=y}
+    }
 
 (* 6.5.5 *)
 multiplicative_expression:
     | cast_expression { Ast.CastExpression $1 }
-    // | multiplicative_expression "*" cast_expression { }
-    // | multiplicative_expression "/" cast_expression { }
-    // | multiplicative_expression "%" cast_expression { }
+    | x = multiplicative_expression; "*"; y = cast_expression {
+      Ast.MultiplicativeProduct {multiplicative_expression=x; cast_expression=y}
+    }
+    | x = multiplicative_expression; "/"; y = cast_expression {
+      Ast.MultiplicativeProduct {multiplicative_expression=x; cast_expression=y}
+    }
+    | x = multiplicative_expression; "%"; y = cast_expression {
+      Ast.MultiplicativeProduct {multiplicative_expression=x; cast_expression=y}
+    }
 
 (* 6.5.4 *)
 cast_expression:

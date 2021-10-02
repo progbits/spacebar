@@ -74,6 +74,8 @@ and unary_operator =
   | UnaryBitwiseNot of unit
   | UnaryNot of unit
 
+and assignment_operator = Assign of unit
+
 and multiplicative_expression =
   | CastExpression of unary_expression
   | MultiplicativeProduct of
@@ -166,7 +168,7 @@ and assignment_expression =
   | AssignmentConditionalExpression of conditional_expression
   | AssignmentOperation of
       { unary_expression: unary_expression
-      ; assignment_operator: string
+      ; assignment_operator: assignment_operator
       ; assignment_expression: assignment_expression }
 
 and expression = AssignmentExpression of assignment_expression

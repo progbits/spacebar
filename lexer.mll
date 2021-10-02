@@ -96,11 +96,11 @@ rule token = parse
     | ">=" { GTE }
     | "==" { EQ }
     | "!=" { NEQ }
-    (* | "^" ->
-    | "|" ->
-    | "&&" ->
-    | "||" ->
-    | "?" -> *)
+    | "^" { HAT }
+    | "|" { PIPE }
+    | "&&" { AND }
+    | "||" { OR }
+    | "?" { CONDITIONAL }
     | ":" { COLON }
     | ";" { SEMICOLON }
     | "..." { ELLIPSIS }

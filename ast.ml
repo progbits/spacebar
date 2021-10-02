@@ -87,6 +87,8 @@ and unary_operator =
   | UnaryBitwiseNot of unit
   | UnaryNot of unit
 
+and assignment_operator = Assign of unit
+
 (* 6.5.5 *)
 and multiplicative_expression =
   | CastExpression of unary_expression
@@ -191,7 +193,7 @@ and assignment_expression =
   | AssignmentConditionalExpression of conditional_expression
   | AssignmentOperation of
       { unary_expression: unary_expression
-      ; assignment_operator: string
+      ; assignment_operator: assignment_operator
       ; assignment_expression: assignment_expression }
 
 (* 6.5.17 *)
@@ -207,10 +209,12 @@ let print_primary_expression (x : primary_expression) =
   | Expression _ -> print_unimplemented
   | FunctionCallExpression _ -> print_unimplemented
 
-let print_postfix_expression (x : postfix_expression) =
+let rec print_postfix_expression (x : postfix_expression) =
   match x with
   | PrimaryExpression x' -> print_primary_expression x'
-  | ArrayAccess _ -> print_unimplemented
+  | ArrayAccess x' ->
+      print_postfix_expression x'.postfix_expression
+      (*print_expression x'.expression*)
   | FunctionCall _ -> print_unimplemented
   | MemberAccess _ -> print_unimplemented
   | PointerMemberAccess _ -> print_unimplemented
@@ -224,17 +228,33 @@ let print_unary_expresssion (x : unary_expression) =
   | PrefixDecrement _ -> print_unimplemented
   | UnaryOperator _ -> print_unimplemented
 
-let print_multiplicative_expression (x : multiplicative_expression) =
+let rec print_multiplicative_expression (x : multiplicative_expression) =
   match x with
   | CastExpression x' -> print_unary_expresssion x'
-  | MultiplicativeProduct _ -> print_unimplemented
-  | MultiplicativeDivision _ -> print_unimplemented
-  | MultiplicativeRemainder _ -> print_unimplemented
+  | MultiplicativeProduct x' ->
+      Printf.printf "MultiplicativeProduct\n" ;
+      print_multiplicative_expression x'.multiplicative_expression ;
+      Printf.printf "*\n" ;
+      print_unary_expresssion x'.cast_expression
+  | MultiplicativeDivision x' ->
+      Printf.printf "MultiplicativeDivision\n" ;
+      print_multiplicative_expression x'.multiplicative_expression ;
+      Printf.printf "/\n" ;
+      print_unary_expresssion x'.cast_expression
+  | MultiplicativeRemainder x' ->
+      Printf.printf "MultiplicativeRemainder\n" ;
+      print_multiplicative_expression x'.multiplicative_expression ;
+      Printf.printf "%%\n" ;
+      print_unary_expresssion x'.cast_expression
 
-let print_additive_expression (x : additive_expression) =
+let rec print_additive_expression (x : additive_expression) =
   match x with
   | MultiplicativeExpression x' -> print_multiplicative_expression x'
-  | AdditiveAdditionExpression _ -> print_unimplemented
+  | AdditiveAdditionExpression x' ->
+      Printf.printf "AdditiveAdditionExpression\n" ;
+      print_additive_expression x'.additive_expression ;
+      Printf.printf "+\n" ;
+      print_multiplicative_expression x'.multiplicative_expression
   | AdditiveSubtractionExpression _ -> print_unimplemented
 
 let print_shift_expression (x : shift_expression) =
@@ -287,14 +307,20 @@ let print_conditional_expression (x : conditional_expression) =
   | ContitionalLogicalOrExpression x' -> print_logical_or_expression x'
   | ConditionalExpression _ -> print_unimplemented
 
-let print_assignment_expression (x : assignment_expression) =
+let rec print_assignment_expression (x : assignment_expression) =
+  Printf.printf "Assignment Expression\n" ;
   match x with
-  | AssignmentConditionalExpression x' -> print_conditional_expression x'
-  | AssignmentOperation _ -> print_unimplemented
+  | AssignmentConditionalExpression x' ->
+      Printf.printf "conditional!!!\n" ;
+      print_conditional_expression x'
+  | AssignmentOperation x' ->
+      print_unary_expresssion x'.unary_expression ;
+      Printf.printf "Assignment operator\n" ;
+      print_assignment_expression x'.assignment_expression
 
 (*let print_expression (x: expression) =
   match x with
-  | AssignmentExpression x' -> print_assignment_expression x'*)
+  | AssignmentExpression x' -> print_assignment_expression x':*)
 
 (* 6.7 *)
 type init_declarator =
@@ -422,8 +448,6 @@ and print_init_declarator (x : init_declarator) =
   match x._initializer with
   | Some x' -> print_assignment_expression x'
   | None -> Printf.printf "No initializer\n"
-
-(* todo: print assignment_expression *)
 
 (* Pretty print `declaration` *)
 let print_declaration (x : declaration) =
