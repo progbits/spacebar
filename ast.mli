@@ -173,8 +173,6 @@ and assignment_expression =
 
 and expression = AssignmentExpression of assignment_expression
 
-val print_unimplemented : unit
-
 val print_primary_expression : primary_expression -> unit
 
 val print_postfix_expression : postfix_expression -> unit
