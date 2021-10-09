@@ -181,12 +181,16 @@ postfix_expression:
     | x = postfix_expression; "["; y = expression; "]" {
         Ast.ArrayAccess {postfix_expression=x; expression=y}
     }
-    // | postfix_expression "(" option(argument_expression_list) ")" { }
+    | x = postfix_expression; "("; y = option(argument_expression_list); ")" {
+        match y with
+        | Some y' -> Ast.FunctionCall { postfix_expression=x; argument_expression_list=y' }
+        | None -> Ast.FunctionCall { postfix_expression=x; argument_expression_list=[] }
+    }
     // | postfix_expression DOT IDENTIFIER { }
 
 argument_expression_list:
-    | assignment_expression { $1 }
-    // | argument_expression_list "," assignment_expression { }
+    | assignment_expression { [$1] }
+    | x = argument_expression_list; ","; y = assignment_expression { y :: x }
 
 // 6.5.3 Unary Operators
 unary_expression:

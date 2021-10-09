@@ -1,33 +1,35 @@
 open Ast
 
-let print_primary_expression (x : primary_expression) =
+let rec print_primary_expression (x : primary_expression) =
   match x with
   | Identifier x' -> Printf.printf "%s\n" x'
   | Constant x' -> Printf.printf "%d\n" x'
   | StringLiteral x' -> Printf.printf "%s\n" x'
   | Expression _ -> Printf.printf "Expression\n"
-  | FunctionCallExpression _ -> Printf.printf "FunctionCallExpression\n"
 
-let rec print_postfix_expression (x : postfix_expression) =
+and print_postfix_expression (x : postfix_expression) =
   match x with
   | PrimaryExpression x' -> print_primary_expression x'
   | ArrayAccess x' ->
-      print_postfix_expression x'.postfix_expression
-      (*print_expression x'.expression*)
-  | FunctionCall _ -> Printf.printf "FunctionCall\n"
+      print_postfix_expression x'.postfix_expression ;
+      print_expression x'.expression
+  | FunctionCall x' ->
+      Printf.printf "Function call\n" ;
+      print_postfix_expression x'.postfix_expression ;
+      List.iter print_assignment_expression x'.argument_expression_list
   | MemberAccess _ -> Printf.printf "MemberAccess\n"
   | PointerMemberAccess _ -> Printf.printf "PointerMemberAccess\n"
   | PostfixIncrement _ -> Printf.printf "PostfixIncrement\n"
   | PostfixDecrement _ -> Printf.printf "PostfixDecrement\n"
 
-let print_unary_expresssion (x : unary_expression) =
+and print_unary_expresssion (x : unary_expression) =
   match x with
   | PostfixExpression x' -> print_postfix_expression x'
   | PrefixIncrement _ -> Printf.printf "PrefixIncrement\n"
   | PrefixDecrement _ -> Printf.printf "PrefixDecrement\n"
   | UnaryOperator _ -> Printf.printf "UnaryOperator\n"
 
-let rec print_multiplicative_expression (x : multiplicative_expression) =
+and print_multiplicative_expression (x : multiplicative_expression) =
   match x with
   | CastExpression x' -> print_unary_expresssion x'
   | MultiplicativeProduct x' ->
@@ -46,7 +48,7 @@ let rec print_multiplicative_expression (x : multiplicative_expression) =
       Printf.printf "%%\n" ;
       print_unary_expresssion x'.cast_expression
 
-let rec print_additive_expression (x : additive_expression) =
+and print_additive_expression (x : additive_expression) =
   match x with
   | MultiplicativeExpression x' -> print_multiplicative_expression x'
   | AdditiveAdditionExpression x' ->
@@ -57,13 +59,13 @@ let rec print_additive_expression (x : additive_expression) =
   | AdditiveSubtractionExpression _ ->
       Printf.printf "AdditiveSubtractionExpression\n"
 
-let print_shift_expression (x : shift_expression) =
+and print_shift_expression (x : shift_expression) =
   match x with
   | AdditiveExpression x' -> print_additive_expression x'
   | LeftShiftExpression _ -> Printf.printf "LeftShiftExpression\n"
   | RightShiftExpression _ -> Printf.printf "RightShiftExpression\n"
 
-let print_relational_expression (x : relational_expression) =
+and print_relational_expression (x : relational_expression) =
   match x with
   | ShiftExpression x' -> print_shift_expression x'
   | LessThanExpression _ -> Printf.printf "LessThanExpression\n"
@@ -72,45 +74,45 @@ let print_relational_expression (x : relational_expression) =
       Printf.printf "LessThanEqualThanExpression\n"
   | GreaterThanEqualExpression _ -> Printf.printf "GreaterThanEqualExpression\n"
 
-let print_equality_expression (x : equality_expression) =
+and print_equality_expression (x : equality_expression) =
   match x with
   | RelationalExpression x' -> print_relational_expression x'
   | EqualToExpression _ -> Printf.printf "EqualToExpression\n"
   | NotEqualToExpression _ -> Printf.printf "NotEqualToExpression\n"
 
-let print_and_expression (x : and_expression) =
+and print_and_expression (x : and_expression) =
   match x with
   | EqualityExpression x' -> print_equality_expression x'
   | BitwiseAndExpression _ -> Printf.printf "BitwiseAndExpression\n"
 
-let print_exclusive_or_expression (x : exclusive_or_expression) =
+and print_exclusive_or_expression (x : exclusive_or_expression) =
   match x with
   | AndExpression x' -> print_and_expression x'
   | ExclusiveBitwiseOrExpression _ ->
       Printf.printf "ExclusiveBitwiseOrExpression\n"
 
-let print_inclusive_or_expression (x : inclusive_or_expression) =
+and print_inclusive_or_expression (x : inclusive_or_expression) =
   match x with
   | ExclusiveOr x' -> print_exclusive_or_expression x'
   | InclusiveBitwiseOrExpression _ ->
       Printf.printf "InclusiveBitwiseOrExpression\n"
 
-let print_logical_and_expression (x : logical_and_expression) =
+and print_logical_and_expression (x : logical_and_expression) =
   match x with
   | InclusiveOrExpression x' -> print_inclusive_or_expression x'
   | LogicalAndExpression _ -> Printf.printf "LogicalAndExpression\n"
 
-let print_logical_or_expression (x : logical_or_expression) =
+and print_logical_or_expression (x : logical_or_expression) =
   match x with
   | LogicalOrLogicalAndExpression x' -> print_logical_and_expression x'
   | LogicalOrExpression _ -> Printf.printf "LogicalOrExpression\n"
 
-let print_conditional_expression (x : conditional_expression) =
+and print_conditional_expression (x : conditional_expression) =
   match x with
   | ContitionalLogicalOrExpression x' -> print_logical_or_expression x'
   | ConditionalExpression _ -> Printf.printf "ConditionalExpression\n"
 
-let rec print_assignment_expression (x : assignment_expression) =
+and print_assignment_expression (x : assignment_expression) =
   Printf.printf "Assignment Expression\n" ;
   match x with
   | AssignmentConditionalExpression x' ->
@@ -121,9 +123,8 @@ let rec print_assignment_expression (x : assignment_expression) =
       Printf.printf "Assignment operator\n" ;
       print_assignment_expression x'.assignment_expression
 
-(*let print_expression (x: expression) =
-  match x with
-  | AssignmentExpression x' -> print_assignment_expression x':*)
+and print_expression (x : expression) =
+  match x with AssignmentExpression x' -> print_assignment_expression x'
 
 (* Pretty print `type_specifier` *)
 let print_type_specifier t =
@@ -212,17 +213,26 @@ and print_init_declarator (x : init_declarator) =
   | None -> Printf.printf "No initializer\n"
 
 (* Pretty print `declaration` *)
-let print_declaration (x : declaration) =
+and print_declaration (x : declaration) =
   print_declaration_specifiers x.declaration_specifiers ;
   match x.init_declarator_list with
   | Some x' -> List.iter print_init_declarator x'
   | None -> Printf.printf "No init_declarator_list\n"
 
 (* Pretty print `block_item` *)
-let print_block_item (x : block_item) =
+and print_block_item (x : block_item) =
   match x with
   | Declaration x' -> print_declaration x'
-  | Statement _ -> Printf.printf "statement\n"
+  | Statement x' -> (
+    match x' with
+    | LabeledStatement _ -> Printf.printf "labelled statement\n"
+    | CompoundStatement x'' -> (
+      match x'' with Some y -> List.iter print_block_item y | None -> () )
+    | ExpressionStatement y -> (
+      match y with Some y' -> print_expression y' | None -> () )
+    | SelectionStatement _ -> Printf.printf "selections statement\n"
+    | IterationStatement _ -> Printf.printf "iteration statement\n"
+    | JumpStatement _ -> Printf.printf "Jump statement\n" )
 
 (* Pretty print `external_declaration` *)
 let print_external_declaration x =

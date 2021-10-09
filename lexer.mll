@@ -53,6 +53,8 @@
         match found with
         | Some keyword -> Some (snd keyword)
         | None -> None
+
+    let buffer = Buffer.create 2048
 }
 
 (* 6.4.2 *)
@@ -69,6 +71,11 @@ rule token = parse
         match is_keyword id with
         | Some keyword -> keyword
         | None -> IDENTIFIER id
+    }
+    | "\"" {
+        Buffer.clear buffer;
+        string lexbuf;
+        STRING_LITERAL (Buffer.contents buffer)
     }
     | "[" { LBRACKET }
     | "]" { RBRACKET }
@@ -119,5 +126,14 @@ rule token = parse
     (* | "#" ->
     | "##" -> *)
     | eof { EOF }
+
+and string = parse
+    | "\"" {
+        ()
+    }
+    | _ as c {
+        Buffer.add_char buffer c;
+        string lexbuf
+    }
 
 {}

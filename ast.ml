@@ -56,7 +56,6 @@ type primary_expression =
   | Constant of int
   | StringLiteral of string
   | Expression of expression
-  | FunctionCallExpression of string
 
 (* 6.5.2 *)
 and postfix_expression =
@@ -64,7 +63,8 @@ and postfix_expression =
   | ArrayAccess of
       {postfix_expression: postfix_expression; expression: expression}
   | FunctionCall of
-      {postfix_expression: postfix_expression; expression: expression}
+      { postfix_expression: postfix_expression
+      ; argument_expression_list: assignment_expression list }
   | MemberAccess of {postfix_expression: postfix_expression; identifier: string}
   | PointerMemberAccess of
       {postfix_expression: postfix_expression; identifier: string}
@@ -248,4 +248,3 @@ type function_definition =
 type external_declaration =
   | FunctionDefinition of function_definition
   | Declaration of declaration
-
