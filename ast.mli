@@ -6,7 +6,7 @@ type type_qualifier = Const | Volatile
 
 type function_specifier = Inline | NoReturn
 
-type alignment_specifier = None
+type alignment_specifier = Alignas
 
 type declaration_specifiers =
   | StorageClass of

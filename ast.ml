@@ -11,7 +11,7 @@ type type_qualifier = Const | Volatile
 type function_specifier = Inline | NoReturn
 
 (* 6.7.5 - Not implemented *)
-type alignment_specifier = None
+type alignment_specifier = Alignas
 
 (* 6.7 *)
 type declaration_specifiers =
