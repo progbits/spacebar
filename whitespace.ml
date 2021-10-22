@@ -70,11 +70,16 @@ let print output imp =
     | Retrieve -> Printf.fprintf output "\t\t\t" )
   | FlowControl x -> (
     match x with
-    | Mark x' -> Printf.fprintf output "\n  %s" x'
-    | Call x' -> Printf.fprintf output "\n \t%s" x'
-    | UnconditionalJump x' -> Printf.fprintf output "\n \n%s" x'
-    | JumpZero x' -> Printf.fprintf output "\n\t %s" x'
-    | JumpNegative x' -> Printf.fprintf output "\n\t\t%s" x'
+    | Mark x' ->
+        Printf.fprintf output "\n  %s" (encode_number (int_of_string x'))
+    | Call x' ->
+        Printf.fprintf output "\n \t%s" (encode_number (int_of_string x'))
+    | UnconditionalJump x' ->
+        Printf.fprintf output "\n \n%s" (encode_number (int_of_string x'))
+    | JumpZero x' ->
+        Printf.fprintf output "\n\t %s" (encode_number (int_of_string x'))
+    | JumpNegative x' ->
+        Printf.fprintf output "\n\t\t%s" (encode_number (int_of_string x'))
     | EndSubroutine -> Printf.fprintf output "\n\t\n"
     | EndProgram -> Printf.fprintf output "\n\n\n" )
   | IO x -> (
