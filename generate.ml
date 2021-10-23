@@ -1,6 +1,8 @@
 open Ast
 open Whitespace
 
+exception Function_Not_Found of string
+
 (* An entry in the symbol table. *)
 type symbol = {name: string}
 
@@ -21,6 +23,16 @@ let add_function state name =
   | None ->
       let symbol_table' = {name} :: state.symbol_table in
       ({state with symbol_table= symbol_table'}, List.length state.symbol_table)
+
+(* Return the label associated with a function. *)
+let find_function_label state name =
+  let rec find_name function_table name i =
+    match function_table with
+    | [] -> None
+    | h :: _ when h.name = name -> Some i
+    | _ :: t -> find_name t name (i + 1)
+  in
+  find_name state.function_table name 0
 
 (* Add a new name to the symbol table and returning its offset and the new
    generator state. Currently we assume all names live in the global scope. *)
@@ -53,6 +65,30 @@ let rec function_name (declarator : declarator) =
   in
   match_direct_declarator declarator.direct_declarator
 
+(* Emit the built-in function puti and return the function label. *)
+let emit_puti state =
+  Printf.printf "emit_puti\n" ;
+  (* Sanity check. This method should only ever be called once. *)
+  let _ =
+    match find_function_label state "puti" with
+    | Some _ ->
+        raise (Invalid_argument "Built-in function puit(...) already defined")
+    | None -> ()
+  in
+  (* Add the function to the symbol table. *)
+  let state, label = add_function state "puti" in
+  (* Add the function label. *)
+  let state = emit_opcode state (FlowControl (Mark (string_of_int label))) in
+  (* Load the stack pointer (heap_addr = 0). *)
+  let state = emit_opcode state (StackManipulation (Push 0)) in
+  let state = emit_opcode state (HeapAccess Retrieve) in
+  (* Load the value pointed to by the stack pointer *)
+  let state = emit_opcode state (HeapAccess Retrieve) in
+  (* Output the argument. *)
+  let state = emit_opcode state (IO OutputCharacter) in
+  let state = emit_opcode state (FlowControl EndSubroutine) in
+  (state, label)
+
 let emit_primary_expression state x =
   Printf.printf "%d\n" (List.length state.symbol_table) ;
   match x with
@@ -65,6 +101,15 @@ let emit_primary_expression state x =
   | _ ->
       Printf.printf "emit_logical_or_expression: Not implemented\n" ;
       state
+
+(* Load the stack pointer, incriment the value, store the stack pointer. *)
+let inc_stack_ptr state =
+  let state = emit_opcode state (StackManipulation (Push 0)) in
+  let state = emit_opcode state (HeapAccess Retrieve) in
+  let state = emit_opcode state (StackManipulation (Push 1)) in
+  let state = emit_opcode state (Arithmetic Addtion) in
+  let state = emit_opcode state (StackManipulation (Push 0)) in
+  emit_opcode state (HeapAccess Store)
 
 let rec emit_postfix_expression state x =
   match x with
@@ -83,14 +128,49 @@ let rec emit_postfix_expression state x =
             Printf.printf "No function name!\n" ;
             ""
       in
-      (* Push our function arguments onto the stack. *)
-      let state =
-        List.fold_left emit_assignment_expression state
-          x'.argument_expression_list
+      (* First, store the current stack pointer. *)
+      let state = emit_opcode state (StackManipulation (Push 0)) in
+      let state = emit_opcode state (HeapAccess Retrieve) in
+      let state = emit_opcode state (StackManipulation Duplicate) in
+      let state = emit_opcode state (HeapAccess Store) in
+      let state = inc_stack_ptr state in
+      (* Store the function arguments relative to the stack pointer. *)
+      let rec process_arguments state arguments =
+        match arguments with
+        | hd :: tl ->
+            (* Compute the expression, the result will end up on top of the
+               stack. *)
+            let state = emit_assignment_expression state hd in
+            (* Store the result offset from the stack pointer. *)
+            let state = emit_opcode state (StackManipulation (Push 0)) in
+            let state = emit_opcode state (HeapAccess Retrieve) in
+            let state = emit_opcode state (StackManipulation Swap) in
+            let state = emit_opcode state (HeapAccess Store) in
+            let state = inc_stack_ptr state in
+            process_arguments state tl
+        | [] -> state
       in
-      (* Call the function. *)
-      let state, label = add_function state function_name in
-      emit_opcode state (FlowControl (Call (string_of_int label)))
+      let state = process_arguments state x'.argument_expression_list in
+      (* Find the function label and call the function. *)
+      let state, label =
+        match find_function_label state function_name with
+        | Some x -> (state, x)
+        | None -> (
+          (* Before we declare this an error, check if we are trying to call a
+             built-in we have not yet emitted. *)
+          match function_name with
+          | "puti" -> emit_puti state
+          | _ ->
+              raise
+                (Function_Not_Found
+                   ("Function " ^ function_name ^ " not found in symbol table.")
+                ) )
+      in
+      let state =
+        emit_opcode state (FlowControl (Call (string_of_int label)))
+      in
+      (* Restore the stack pointer *)
+      state
   | _ ->
       Printf.printf "emit_logical_or_expression: Not implemented\n" ;
       state
@@ -192,9 +272,9 @@ and emit_expression state (expression : expression) =
 
 let rec emit_block_item state (block_item : block_item) =
   match block_item with
-  | Declaration _ ->
+  | Declaration x ->
       Printf.printf "block_item: emit_declaration\n" ;
-      state
+      emit_declaration state x
   | Statement x ->
       Printf.printf "block_item: emit_statement\n" ;
       emit_statement state x
@@ -221,19 +301,22 @@ and emit_statement state (statement : statement) =
       state
 
 (* Emit a function definition *)
-let emit_function_definition state (function_definition : function_definition) =
+and emit_function_definition state (function_definition : function_definition) =
   let function_name = function_name function_definition.declarator in
   let state, label = add_function state function_name in
   Printf.printf "Found function %s with label %d\n" function_name label ;
   let state = emit_opcode state (FlowControl (Mark (string_of_int label))) in
-  match function_definition.compound_statement with
-  | Some x' -> List.fold_left emit_block_item state x'
-  | None ->
-      Printf.printf "No compount_statement\n" ;
-      state
+  let state =
+    match function_definition.compound_statement with
+    | Some x' -> List.fold_left emit_block_item state x'
+    | None ->
+        Printf.printf "No compount_statement\n" ;
+        state
+  in
+  emit_opcode state (FlowControl EndSubroutine)
 
 (* Emit a declaration, returning the new state of the generator. *)
-let emit_declaration state declaration =
+and emit_declaration state declaration =
   (* Emit a declarator, returning the new state of the generator. *)
   let emit_init_declarator state (init_declarator : init_declarator) =
     (* Emit the (optional) initializer. *)
@@ -269,12 +352,19 @@ let emit_external_declaration state ast =
   | FunctionDefinition x -> emit_function_definition state x
   | Declaration x -> emit_declaration state x
 
+(* Initalize the stack pointer at heap-addr 0 to the value 1. *)
+let init_stack_pointer state =
+  let state = emit_opcode state (StackManipulation (Push 0)) in
+  let state = emit_opcode state (StackManipulation (Push 1)) in
+  emit_opcode state (HeapAccess Store)
+
 (* Generate bytecode from our AST. *)
 let generate (x : external_declaration list) =
   let state = {ops= []; symbol_table= []; function_table= []} in
-  let state = List.fold_left emit_external_declaration state x in
-  (* Call main at label 0 *)
+  let state = init_stack_pointer state in
+  (* Call main at reserved label 0 and end program. *)
   let state = emit_opcode state (FlowControl (Call "0")) in
-  (* End program *)
   let state = emit_opcode state (FlowControl EndProgram) in
-  state.ops
+  (* Traverse AST and emit external-declarations. *)
+  let state = List.fold_left emit_external_declaration state x in
+  List.rev state.ops
