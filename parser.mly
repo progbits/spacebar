@@ -95,9 +95,8 @@
 %left "+" "-"
 %left ">" ">=" "<" "<="
 %left "==" "!="
+%right "="
 %left ","
-// %left "&&"
-// %left "||"
 
 // Entrypoint.
 %start <external_declaration list> translation_unit
@@ -113,7 +112,7 @@ external_declaration:
 
 (* 6.7.6 *)
 declarator:
-    | option(pointer) direct_declarator { 
+    | pointer? direct_declarator {
         { pointer=$1; direct_declarator=$2 }
     }
 
@@ -123,15 +122,15 @@ direct_declarator:
     | x = direct_declarator; "("; y = parameter_type_list; ")" { 
         Ast.FunctionDeclarator { direct_declarator=x; parameter_list=y }
     }
-    | x = direct_declarator; "("; option(identifier_list); ")" { 
+    | x = direct_declarator; "("; identifier_list?; ")" {
         Ast.FunctionDeclarator { direct_declarator=x; parameter_list=[] }
     }
 
 pointer:
-    | STAR; option(type_qualifier_list) {
+    | STAR; type_qualifier_list? {
         {type_qualifier_list=$2; pointer=None }
     }
-    | STAR; option(type_qualifier_list); pointer { 
+    | STAR; type_qualifier_list?; pointer {
         {type_qualifier_list=$2; pointer=Some $3 }
     }
 
@@ -156,9 +155,9 @@ identifier_list:
     | IDENTIFIER { [$1] }
     | identifier_list; ","; i = IDENTIFIER { i :: $1 }
 
-// 6.9.1 Function definitions.
+(* 6.9.1 *)
 function_definition:
-    | declaration_specifiers declarator option(declaration_list) compound_statement { 
+    | declaration_specifiers declarator declaration_list? compound_statement {
         { declaration_specifiers=$1
         ; declarator=$2
         ; declaration_list=$3
@@ -181,7 +180,7 @@ postfix_expression:
     | x = postfix_expression; "["; y = expression; "]" {
         Ast.ArrayAccess {postfix_expression=x; expression=y}
     }
-    | x = postfix_expression; "("; y = option(argument_expression_list); ")" {
+    | x = postfix_expression; "("; y = argument_expression_list?; ")" {
         match y with
         | Some y' -> Ast.FunctionCall { postfix_expression=x; argument_expression_list=y' }
         | None -> Ast.FunctionCall { postfix_expression=x; argument_expression_list=[] }
@@ -192,25 +191,25 @@ argument_expression_list:
     | assignment_expression { [$1] }
     | x = argument_expression_list; ","; y = assignment_expression { y :: x }
 
-// 6.5.3 Unary Operators
+(* 6.5.3 *)
 unary_expression:
     | postfix_expression { Ast.PostfixExpression $1 }
     // | unary_operator cast_expression { }
 
-// 6.7 Declarations
+(* 6.7 *)
 declaration:
-    | declaration_specifiers; option(init_declarator_list); ";" { 
+    | declaration_specifiers; init_declarator_list?; ";" {
         { declaration_specifiers=$1; init_declarator_list=$2 }
     }
 
 declaration_specifiers:
-    | type_specifier option(declaration_specifiers) { 
+    | type_specifier declaration_specifiers? {
         Ast.TypeSpecifier { type_specifier=$1; declaration_specifiers=$2 }
     }
-    | type_qualifier option(declaration_specifiers) { 
+    | type_qualifier declaration_specifiers? {
         Ast.TypeQualifier { type_qualifier=$1; declaration_specifiers=$2 }
     }
-    | function_specifier option(declaration_specifiers) { 
+    | function_specifier declaration_specifiers? {
         Ast.FunctionSpecifier { function_specifier=$1; declaration_specifiers=$2 }
     }
 
@@ -231,7 +230,7 @@ type_specifier:
     | struct_or_union_specifier { $1 }
 
 struct_or_union_specifier:
-    | struct_or_union option(IDENTIFIER) "{" struct_declaration_list "}" { $1 }
+    | struct_or_union IDENTIFIER? "{" struct_declaration_list "}" { $1 }
     | struct_or_union IDENTIFIER { $1 }
 
 struct_or_union:
@@ -243,11 +242,11 @@ struct_declaration_list:
     | struct_declaration_list struct_declaration { }
 
 struct_declaration:
-    | specifier_qualifier_list option(struct_declarator_list) ";" { }
+    | specifier_qualifier_list struct_declarator_list? ";" { }
 
 specifier_qualifier_list:
-    | type_specifier option(specifier_qualifier_list) { }
-    | type_qualifier option(specifier_qualifier_list) { }
+    | type_specifier specifier_qualifier_list? { }
+    | type_qualifier specifier_qualifier_list? { }
 
 struct_declarator_list:
     | struct_declarator { }
@@ -255,7 +254,7 @@ struct_declarator_list:
 
 struct_declarator:
     | declarator { }
-    | option(declarator) COLON constant_expression { }
+    | declarator? COLON constant_expression { }
 
 type_qualifier:
     | CONST { Const }
@@ -395,15 +394,15 @@ unary_operator:
     | "~" { UnaryBitwiseNot }
     | "!" { UnaryNot }
 
-// 6.7.9 Initialization
+(* 6.7.9 *)
 initializerr:
     | assignment_expression { $1 }
     // | "{" initializer_list "}" { }
     // | "{" initializer_list "," "}" { }
 
 initializer_list:
-    | option(designation) initializerr { }
-    | initializer_list "," option(designation) initializerr { }
+    | designation? initializerr { }
+    | initializer_list "," designation? initializerr { }
 
 designation:
     | designator_list { }
@@ -416,7 +415,7 @@ designator:
     | "[" constant_expression "]" { }
     | DOT IDENTIFIER { }
 
-// 6.8 Statements and blocks
+(* 6.8 *)
 statement:
     | labeled_statement { Ast.LabeledStatement "" }
     | compound_statement { Ast.CompoundStatement $1 }
@@ -431,7 +430,11 @@ labeled_statement:
     | DEFAULT COLON statement { }
 
 compound_statement:
-    | "{"; x = option(block_item_list); "}" { x }
+    | "{"; x = block_item_list?; "}" {
+      match x with
+      | Some x' -> x'
+      | None -> []
+    }
 
 block_item_list:
     | block_item { [$1] }
@@ -442,7 +445,7 @@ block_item:
     | statement { Ast.Statement $1 }
 
 expression_statement:
-    | option(expression) ";" { $1 }
+    | expression? ";" { $1 }
 
 selection_statement:
     | IF; "("; x = expression; ")"; y = statement {
@@ -459,9 +462,8 @@ iteration_statement:
     | DO; x = statement; WHILE; "("; y = expression; ")"; ";" {
       Ast.DoWhile {body=x; expression=y}
     }
-    | FOR; "("; x = option(expression); ";"; y = option(expression); ";"; z = option(expression); ")"; w = statement {
+    | FOR; "("; x = expression?; ";"; y = expression?; ";"; z = expression?; ")"; w = statement {
       Ast.For {init=x; condition=y; iteration=z; body=w}
     }
     (*| FOR "(" declaration option(expression) ";" option(expression) ")" statement { }*)
-
 ;

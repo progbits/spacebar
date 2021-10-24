@@ -182,7 +182,7 @@ type declaration =
 
 type statement =
   | LabeledStatement of string
-  | CompoundStatement of block_item list option
+  | CompoundStatement of block_item list
   | ExpressionStatement of expression option
   | SelectionStatement of selection_statement
   | IterationStatement of iteration_statement
@@ -208,7 +208,7 @@ type function_definition =
   { declaration_specifiers: declaration_specifiers
   ; declarator: declarator
   ; declaration_list: declaration list option
-  ; compound_statement: block_item list option }
+  ; compound_statement: block_item list }
 
 type external_declaration =
   | FunctionDefinition of function_definition
