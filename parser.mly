@@ -432,7 +432,7 @@ labeled_statement:
 compound_statement:
     | "{"; x = block_item_list?; "}" {
       match x with
-      | Some x' -> x'
+      | Some x' -> List.rev x'
       | None -> []
     }
 
