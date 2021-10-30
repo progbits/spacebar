@@ -42,10 +42,11 @@ let encode_number number =
       | _ -> raise (Failure "This shouldn't happen...") )
     | _ -> result ^ "\n"
   in
+  let is_negative = number < 0 in
   (* Encode number. *)
-  let result = do_encode number "" in
+  let result = do_encode (Int.abs number) "" in
   (* Encode Sign. *)
-  if number < 0 then "\t" ^ result else " " ^ result
+  if is_negative then "\t" ^ result else " " ^ result
 
 (* Print the representation of an instruction modification parameter to
    `output`. *)

@@ -124,49 +124,60 @@ let rec identifier (declarator : declarator) =
   in
   match_direct_declarator declarator.direct_declarator
 
-(* Store the value at the top of stack relative to the stack pointer. *)
-let store_stack_rel state offset =
+(* Store a value on the stack. *)
+let store_rsp_rel state =
   let ops =
     [ StackManipulation (Push 0)
     ; HeapAccess Retrieve
-    ; StackManipulation (Push (offset - 1))
-    ; Arithmetic Addtion
     ; StackManipulation Swap
-    ; HeapAccess Store ]
-  in
-  List.fold_left emit_opcode state ops
-
-(* Load a value relative to the stack pointer. *)
-let load_stack_rel state offset =
-  let ops =
-    [ StackManipulation (Push 0)
+    ; HeapAccess Store
+    ; StackManipulation (Push 0)
     ; HeapAccess Retrieve
-    ; StackManipulation (Push (offset - 1))
+    ; StackManipulation (Push 1)
     ; Arithmetic Addtion
-    ; HeapAccess Retrieve ]
-  in
-  List.fold_left emit_opcode state ops
-
-(* Load the value pointed to by the stack pointer and store it in the stack
-   pointer. *)
-let restore_stack_ptr state =
-  let ops =
-    [ StackManipulation (Push 0)
-    ; HeapAccess Retrieve
-    ; HeapAccess Retrieve
     ; StackManipulation (Push 0)
     ; StackManipulation Swap
     ; HeapAccess Store ]
   in
   List.fold_left emit_opcode state ops
 
-(* Store a copy of stack pointer relative to the stack pointer. *)
-let store_stack_ptr state offset =
+(* Load a value relative to rsp. *)
+let load_rbp_rel state offset =
+  let ops =
+    [ StackManipulation (Push 1)
+    ; HeapAccess Retrieve
+    ; StackManipulation (Push (offset - 99))
+    ; Arithmetic Addtion
+    ; HeapAccess Retrieve ]
+  in
+  List.fold_left emit_opcode state ops
+
+(* Store the current value of rsp in rbp. *)
+let set_rsp state value =
+  let ops =
+    [ StackManipulation (Push 0)
+    ; StackManipulation (Push value)
+    ; HeapAccess Store ]
+  in
+  List.fold_left emit_opcode state ops
+
+(* Store the current value of rsp in rbp. *)
+let store_rsp state =
   let ops =
     [ StackManipulation (Push 0)
     ; HeapAccess Retrieve
-    ; StackManipulation (Push (offset - 1))
-    ; Arithmetic Addtion
+    ; StackManipulation (Push 1)
+    ; StackManipulation Swap
+    ; HeapAccess Store ]
+  in
+  List.fold_left emit_opcode state ops
+
+(* Store the current value of rbp in rsp. *)
+let restore_rsp state =
+  let ops =
+    [ StackManipulation (Push 1)
+    ; HeapAccess Retrieve
+    ; StackManipulation (Push 0)
     ; StackManipulation Swap
     ; HeapAccess Store ]
   in
@@ -178,7 +189,7 @@ let emit_puti state =
   let state, label = add_fn state "puti" in
   let state = emit_opcode state (FlowControl (Mark label)) in
   (* Load and output the argument. *)
-  let state = load_stack_rel state (-1) in
+  let state = load_rbp_rel state (-1) in
   let state = emit_opcode state (IO OutputCharacter) in
   let state = emit_opcode state (FlowControl EndSubroutine) in
   state
@@ -190,7 +201,7 @@ let emit_primary_expression state x =
       let offset = find_local_var state x' in
       Printf.printf
         "emit_primary_expression: Identifier. Found %s at offset %d\n" x' offset ;
-      load_stack_rel state offset
+      load_rbp_rel state offset
   | Constant x' ->
       Printf.printf "Emit Constant %d\n" x' ;
       emit_opcode state (StackManipulation (Push x'))
@@ -215,7 +226,7 @@ let rec emit_postfix_expression state x =
             let tmp_var_name = string_of_int (Random.int 65536) in
             let state, offset = add_local_var state "empty" tmp_var_name in
             Printf.printf "tmp_var %s offset %d\n" tmp_var_name offset ;
-            let state = store_stack_rel state offset in
+            let state = store_rsp_rel state in
             process_arguments state t
       in
       (* Assume our postfix expression is an identifier. *)
@@ -231,17 +242,15 @@ let rec emit_postfix_expression state x =
             Printf.printf "No function name!\n" ;
             ""
       in
+      (* Emit function arguments. *)
       let state = process_arguments state x'.argument_expression_list in
-      (* Generate a new tmp var to store the current stack pointer. We are
-         basically just bumping the local variable count. *)
-      (*let stack_tmp_var_name = string_of_int (Random.int 65536) in let state,
-        offset = add_local_var state "empty" stack_tmp_var_name in Printf.printf
-        "stack var %s offset %d\n" stack_tmp_var_name offset ;*)
-      (*let state = store_stack_ptr state offset in*)
+      (* Store the stack pointer. *)
+      let state = store_rsp state in
+      (* Set the function stack pointer. *)
       (* Find the function label and call the function. *)
       let label = find_fn_label state function_name in
-      emit_opcode state (FlowControl (Call label))
-      (*restore_stack_ptr state*)
+      let state = emit_opcode state (FlowControl (Call label)) in
+      restore_rsp state
   | _ ->
       Printf.printf "emit_logical_or_expression: Not implemented\n" ;
       state
@@ -404,10 +413,7 @@ and emit_declaration state declaration =
     Printf.printf "delcaration has_init? %b\n" has_init ;
     if has_init then (
       Printf.printf "emitting stack manipulation ops \n" ;
-      let state = emit_opcode state (StackManipulation (Push offset)) in
-      let state = emit_opcode state (StackManipulation Swap) in
-      let state = emit_opcode state (HeapAccess Store) in
-      state )
+      store_rsp_rel state )
     else state
   in
   match declaration.init_declarator_list with
@@ -428,8 +434,11 @@ let emit_external_declaration state ast =
 let emit_prog_prolog state =
   (* Call main at label 0 and then end the program. *)
   let ops =
-    [ StackManipulation (Push 0)
-    ; StackManipulation (Push 1)
+    [ StackManipulation (Push 1)
+    ; StackManipulation (Push 2)
+    ; HeapAccess Store
+    ; StackManipulation (Push 0)
+    ; StackManipulation (Push 2)
     ; HeapAccess Store
     ; FlowControl (Call "0")
     ; FlowControl EndProgram ]
