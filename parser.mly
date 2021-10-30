@@ -198,7 +198,7 @@ unary_expression:
 
 (* 6.7 *)
 declaration:
-    | declaration_specifiers; init_declarator_list?; ";" {
+    | declaration_specifiers; init_declarator_list; ";" {
         { declaration_specifiers=$1; init_declarator_list=$2 }
     }
 

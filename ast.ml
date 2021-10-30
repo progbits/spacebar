@@ -206,7 +206,7 @@ type init_declarator =
 
 type declaration =
   { declaration_specifiers: declaration_specifiers
-  ; init_declarator_list: init_declarator list option }
+  ; init_declarator_list: init_declarator list }
 
 (* 6.8 *)
 type statement =
