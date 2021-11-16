@@ -9,103 +9,92 @@ exception Function_Not_Found
 
 (* An entry in the symbol table. *)
 type symbol =
-  | Global of {name: string; offset: int}
-  | Function of {name: string; label: string}
-  | Argument of {function_name: string; name: string; offset: int}
-  | Variable of {function_name: string; name: string; offset: int}
+  | Global of {scope: int; name: string; offset: int}
+  | Function of {scope: int; name: string; label: string}
+  | Argument of {scope: int; fn_name: string; name: string; offset: int}
+  | Variable of {scope: int; name: string; offset: int}
 
-(* The current state of the code generator. *)
-type state = {ops: imp list; symbol_table: symbol list}
+(* The current state of the code generator. Stores the list of generated opcodes
+   and the symbol table. The symbol table is a list of symbols, this isn't the
+   most efficient structure, but its easy. *)
+type state = {ops: imp list; next_fn_label: int; symbol_table: symbol list}
 
-(* Returns the next function label. Functions are labelled incrementally
-   starting from '1'. The label '0' is reserved for 'main'. *)
-let next_label state =
-  (* Helper. Count the symbol table entries of type Function. *)
-  let rec count_fn_entries symbol_table i =
-    match symbol_table with
-    | [] -> i
-    | h :: t -> (
-      match h with
-      | Function _ -> count_fn_entries t (i + 1)
-      | _ -> count_fn_entries t i )
-  in
-  (* Label is the number of function entries in the table. *)
-  string_of_int (count_fn_entries state.symbol_table 0)
-
-(* Add a function to the symbol table and return the function label. Raises an
-   exception of type Duplicate_Function_Definition if this symbol is already
-   defined. *)
-let add_fn state fn_name =
-  (* Helper. Find a named entry of type Function. *)
-  let rec fn_exists symbol_table name =
-    match symbol_table with
-    | [] -> false
-    | h :: t -> (
-      match h with
-      | Function x when x.name = name -> true
-      | _ -> fn_exists t name )
-  in
-  (* Add a new entry to the symbol table. *)
-  match fn_exists state.symbol_table fn_name with
-  | true ->
-      (* Bit hacky, but we define `main` in our preamble, so we expect a
-         duplicate definition when we actually get to the code. *)
-      if fn_name = "main" then (state, "0")
-      else raise Duplicate_Function_Definition
-  | false ->
-      let label = next_label state in
-      let new_entry = Function {name= fn_name; label} in
-      ({state with symbol_table= new_entry :: state.symbol_table}, label)
-
-(* Return the label bound to a function. *)
+(* Look up a name in the global section of the symbol table (scope zero) and
+   return the associated label. *)
 let find_fn_label state fn_name =
-  let rec find_label symbol_table fn_name =
+  let rec do_find symbol_table fn_name =
     match symbol_table with
     | [] -> raise Function_Not_Found
     | h :: t -> (
       match h with
-      | Function x when x.name = fn_name -> x.label
-      | _ -> find_label t fn_name )
+      | Function x -> if x.name = fn_name then x.label else do_find t fn_name
+      | _ -> do_find t fn_name )
   in
-  find_label state.symbol_table fn_name
+  do_find state.symbol_table fn_name
 
-(* Add a function argument to the symbol table and return its relative offset. *)
+(* Add a function to the global section (scope zero) of the symbol table and
+   return the function label. *)
+let add_fn state fn_name =
+  (* Bit of a hack...*)
+  if fn_name = "main" then
+    let entry = Function {scope= 0; name= fn_name; label= "0"} in
+    ({state with symbol_table= entry :: state.symbol_table}, "0")
+  else
+    (* Get the next avaliable function label. Functions are labelled
+       incrementally starting from '1' with label '0' reserved for 'main'.*)
+    let state, label =
+      let label = string_of_int state.next_fn_label in
+      let next_fn_label = state.next_fn_label + 1 in
+      ({state with next_fn_label}, label)
+    in
+    let symbol_table =
+      Function {scope= 0; name= fn_name; label} :: state.symbol_table
+    in
+    ({state with symbol_table}, label)
+
+(* Add a function argument to the global section (scope zero) of the symbol
+   table. *)
 let add_fn_arg state fn_name arg_name =
-  (* Count the number of arguments this function has. *)
-  let rec count_fn_args symbol_table fn_name i =
+  (* Count the number of arguments the named function has. *)
+  let rec count_args symbol_table fn_name i =
     match symbol_table with
     | [] -> i
     | h :: t -> (
       match h with
-      | Function x when x.name = fn_name -> count_fn_args t fn_name (i + 1)
-      | _ -> count_fn_args t fn_name i )
+      | Argument x when x.fn_name = fn_name -> count_args t fn_name (i + 1)
+      | _ -> count_args t fn_name i )
   in
-  let offset = count_fn_args state.symbol_table fn_name 0 in
-  let new_entry = Argument {function_name= fn_name; name= arg_name; offset} in
+  let offset = count_args state.symbol_table fn_name 0 - 2 in
+  Printf.printf "Adding argument %s at offset %d to function %s\n" arg_name
+    offset fn_name ;
+  let new_entry = Argument {scope= 0; fn_name; name= arg_name; offset} in
   ({state with symbol_table= new_entry :: state.symbol_table}, offset)
 
-(* Add a local variable to the symbol table and return its relative offset. *)
+(* Add a local variable to the symbol table and return its offset. *)
 let add_local_var state fn_name var_name =
-  (* Count the number of local variables this function has. *)
+  (* Count the number of local variables this scope has. *)
   let rec count symbol_table fn_name i =
     match symbol_table with
     | [] -> i
     | h :: t -> (
       match h with
-      | Variable x when x.function_name = fn_name -> count t fn_name (i + 1)
+      | Variable x when x.scope = 0 -> count t fn_name (i + 1)
       | _ -> count t fn_name i )
   in
   let offset = count state.symbol_table fn_name 0 in
-  let new_entry = Variable {function_name= fn_name; name= var_name; offset} in
+  let new_entry = Variable {scope= 0; name= var_name; offset} in
   ({state with symbol_table= new_entry :: state.symbol_table}, offset)
 
-(* Find a local variable in the symbol table. *)
-let find_local_var state var_name =
+(* Find the offset of a symbol in the symbol table. Search starts at the current
+   scope and works towards the global scope. *)
+let find_offset state var_name =
+  Printf.printf "find_offset %s\n" var_name ;
   let rec find symbol_table var_name =
     match symbol_table with
     | [] -> raise Symbol_Not_Found
     | h :: t -> (
       match h with
+      | Argument x -> if var_name = x.name then x.offset else find t var_name
       | Variable x -> if var_name = x.name then x.offset else find t var_name
       | _ -> find t var_name )
   in
@@ -241,7 +230,7 @@ let emit_puti state =
 let emit_primary_expression state x =
   match x with
   | Identifier x' ->
-      let offset = find_local_var state x' in
+      let offset = find_offset state x' in
       Printf.printf
         "emit_primary_expression: Identifier. Found %s at offset %d\n" x' offset ;
       load_rbp_rel state offset
@@ -263,12 +252,8 @@ let rec emit_postfix_expression state x =
         match arguments with
         | [] -> state
         | h :: t ->
-            (* Compute the expression the place the result on top of the stack.
-               Emit a temporary local variable. *)
+            (* Compute the expression the place the result on top of the stack. *)
             let state = emit_assignment_expression state h in
-            let tmp_var_name = string_of_int (Random.int 65536) in
-            let state, offset = add_local_var state "empty" tmp_var_name in
-            Printf.printf "tmp_var %s offset %d\n" tmp_var_name offset ;
             let state = store_stack state in
             process_arguments state t
       in
@@ -430,14 +415,37 @@ and emit_statement state (statement : statement) =
       state
 
 (* Emit a function definition. *)
-and emit_function_definition state (function_definition : function_definition) =
-  let identifier = identifier function_definition.declarator in
-  let state, label = add_fn state identifier in
-  Printf.printf "Found function %s with label %s\n" identifier label ;
-  let state = emit_opcode state (FlowControl (Mark label)) in
+and emit_fn_def state (fn_def : function_definition) =
+  (* Add the function to the symbol table. *)
+  let fn_name = identifier fn_def.declarator in
+  let state, label = add_fn state fn_name in
+  Printf.printf "Found function %s with label %s\n" fn_name label ;
+  (* Add the function arguments to the symbol table. *)
   let state =
-    List.fold_left emit_block_item state function_definition.compound_statement
+    match fn_def.declarator.direct_declarator with
+    | FunctionDeclarator x ->
+        (* Extract argument names. *)
+        let args =
+          List.map
+            (fun (y : parameter_declaration) -> identifier y.declarator)
+            x.parameter_list
+        in
+        (* Add arguments to symbol table. *)
+        List.fold_left
+          (fun acc x ->
+            Printf.printf "Adding fn_arg %s for fn %s to symbol table\n" x
+              fn_name ;
+            let state, _ = add_fn_arg acc fn_name x in
+            state )
+          state args
+    | _ ->
+        Printf.printf "Unexpected declarator\n" ;
+        state
   in
+  (* Mark the function. *)
+  let state = emit_opcode state (FlowControl (Mark label)) in
+  (* Emit the function definition. *)
+  let state = List.fold_left emit_block_item state fn_def.compound_statement in
   emit_opcode state (FlowControl EndSubroutine)
 
 (* Emit a declaration, returning the new state of the generator. *)
@@ -463,17 +471,13 @@ and emit_declaration state declaration =
       store_stack state )
     else state
   in
-  match declaration.init_declarator_list with
-  | Some x -> List.fold_left emit_init_declarator state x
-  | None ->
-      Printf.printf "No declarators\n" ;
-      state
+  List.fold_left emit_init_declarator state declaration.init_declarator_list
 
 let emit_external_declaration state ast =
   match ast with
   | FunctionDefinition x ->
       Printf.printf "emit_external_declaration: FunctionDefinition\n" ;
-      emit_function_definition state x
+      emit_fn_def state x
   | Declaration x ->
       Printf.printf "emit_external_declaration: FunctionDefinition\n" ;
       emit_declaration state x
@@ -497,7 +501,7 @@ let emit_build_ins state = emit_puti state
 
 (* Generate Whitespace bytecode from an abstract syntac tree. *)
 let generate (x : external_declaration list) =
-  let state = {ops= []; symbol_table= []} in
+  let state = {ops= []; next_fn_label= 1; symbol_table= []} in
   let state = emit_prog_prolog state in
   let state, _ = add_fn state "main" in
   let state = emit_build_ins state in
