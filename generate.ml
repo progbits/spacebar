@@ -64,7 +64,7 @@ let add_fn_arg state fn_name arg_name =
       | Argument x when x.fn_name = fn_name -> count_args t fn_name (i + 1)
       | _ -> count_args t fn_name i )
   in
-  let offset = count_args state.symbol_table fn_name 0 - 2 in
+  let offset = -2 - count_args state.symbol_table fn_name 0 in
   Printf.printf "Adding argument %s at offset %d to function %s\n" arg_name
     offset fn_name ;
   let new_entry = Argument {scope= 0; fn_name; name= arg_name; offset} in
@@ -271,7 +271,9 @@ let rec emit_postfix_expression state x =
             ""
       in
       (* Push the function arguments on the stack. *)
-      let state = process_arguments state x'.argument_expression_list in
+      let state =
+        process_arguments state (List.rev x'.argument_expression_list)
+      in
       (* Store the current frame pointer on the stack. *)
       let state = push_rbp state in
       (* Set the frame pointer for the callee. *)
