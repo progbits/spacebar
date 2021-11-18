@@ -19,6 +19,11 @@ type symbol =
    most efficient structure, but its easy. *)
 type state = {ops: imp list; next_fn_label: int; symbol_table: symbol list}
 
+(* Return the next avaliable label. *)
+let next_fn_label state =
+  let label = state.next_fn_label + 1 in
+  ({state with next_fn_label= label}, label)
+
 (* Look up a name in the global section of the symbol table (scope zero) and
    return the associated label. *)
 let find_fn_label state fn_name =
@@ -130,7 +135,18 @@ let store_stack state =
   in
   List.fold_left emit_opcode state ops
 
-(* Load a value relative to rsp. *)
+(* Take a stack with top [offset, value] and store value in (rbp + offset). *)
+let store_stack_offset state =
+  let ops =
+    [ StackManipulation (Push 1)
+    ; HeapAccess Retrieve
+    ; Arithmetic Addtion
+    ; StackManipulation Swap
+    ; HeapAccess Store ]
+  in
+  List.fold_left emit_opcode state ops
+
+(* Load a value relative to rbp. *)
 let load_rbp_rel state offset =
   let ops =
     [ StackManipulation (Push 1)
@@ -227,24 +243,25 @@ let emit_puti state =
   state
 
 (* Emit opcodes for a primary expression. *)
-let emit_primary_expression state x =
-  match x with
+let emit_primary_expression state expr lvalue =
+  match expr with
   | Identifier x' ->
       let offset = find_offset state x' in
       Printf.printf
         "emit_primary_expression: Identifier. Found %s at offset %d\n" x' offset ;
-      load_rbp_rel state offset
+      if lvalue then emit_opcode state (StackManipulation (Push offset))
+      else load_rbp_rel state offset
   | Constant x' ->
       Printf.printf "Emit Constant %d\n" x' ;
       emit_opcode state (StackManipulation (Push x'))
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_primary_expression: Not implemented\n" ;
       state
 
 (* Emit a postfix expression. *)
-let rec emit_postfix_expression state x =
+let rec emit_postfix_expression state x lvalue =
   match x with
-  | PrimaryExpression x' -> emit_primary_expression state x'
+  | PrimaryExpression x' -> emit_primary_expression state x' lvalue
   | FunctionCall x' ->
       Printf.printf "emit_postfix_expression: FunctionCall\n" ;
       (* Store the function arguments relative to the stack pointer. *)
@@ -286,77 +303,126 @@ let rec emit_postfix_expression state x =
       let state = pop_rbp state in
       sub_rsp state 1
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_postfix_expression: Not implemented\n" ;
       state
 
-and emit_unary_expression state x =
+and emit_unary_expression state x lvalue =
   match x with
-  | PostfixExpression x' -> emit_postfix_expression state x'
+  | PostfixExpression x' -> emit_postfix_expression state x' lvalue
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_unary_expression: Not implemented\n" ;
       state
 
 and emit_multiplicative_expression state x =
   match x with
-  | CastExpression x' -> emit_unary_expression state x'
+  | CastExpression x' -> emit_unary_expression state x' false
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_multiplicative_expression: Not implemented\n" ;
       state
 
 and emit_additive_expression state x =
   match x with
   | MultiplicativeExpression x' -> emit_multiplicative_expression state x'
+  | AdditiveAdditionExpression x' ->
+      Printf.printf "AdditiveAdditionExpression!!!!\n" ;
+      let state = emit_additive_expression state x'.additive_expression in
+      let state =
+        emit_multiplicative_expression state x'.multiplicative_expression
+      in
+      emit_opcode state (Arithmetic Addtion)
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_additive_expression: Not implemented\n" ;
       state
 
 and emit_shift_expression state x =
   match x with
   | AdditiveExpression x' -> emit_additive_expression state x'
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_shift_expression: Not implemented\n" ;
       state
 
 and emit_relational_expression state x =
   match x with
   | ShiftExpression x' -> emit_shift_expression state x'
-  | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+  | LessThanExpression x' ->
+      (* rhs - lhs *)
+      let state = emit_shift_expression state x'.shift_expression in
+      let state = emit_relational_expression state x'.relational_expression in
+      let state = emit_opcode state (Arithmetic Subtraction) in
+      let state, negative_label = next_fn_label state in
+      let state, end_label = next_fn_label state in
+      let state =
+        emit_opcode state
+          (FlowControl (JumpNegative (string_of_int negative_label)))
+      in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state =
+        emit_opcode state
+          (FlowControl (UnconditionalJump (string_of_int end_label)))
+      in
+      let state =
+        emit_opcode state (FlowControl (Mark (string_of_int negative_label)))
+      in
+      let state = emit_opcode state (StackManipulation (Push 0)) in
+      emit_opcode state (FlowControl (Mark (string_of_int end_label)))
+  | GreaterThanExpression x' ->
+      (* rhs - lhs *)
+      let state = emit_shift_expression state x'.shift_expression in
+      let state = emit_relational_expression state x'.relational_expression in
+      let state = emit_opcode state (Arithmetic Subtraction) in
+      let state, negative_label = next_fn_label state in
+      let state =
+        emit_opcode state
+          (FlowControl (JumpNegative (string_of_int negative_label)))
+      in
+      let state = emit_opcode state (StackManipulation (Push 0)) in
+      let state =
+        emit_opcode state (FlowControl (Mark (string_of_int negative_label)))
+      in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
+      state
+  | LessThanEqualThanExpression x' ->
+      let state = emit_relational_expression state x'.relational_expression in
+      let state = emit_shift_expression state x'.shift_expression in
+      state
+  | GreaterThanEqualExpression x' ->
+      let state = emit_relational_expression state x'.relational_expression in
+      let state = emit_shift_expression state x'.shift_expression in
       state
 
 and emit_equality_expression state x =
   match x with
   | RelationalExpression x' -> emit_relational_expression state x'
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_equality_expression: Not implemented\n" ;
       state
 
 and emit_and_expression state x =
   match x with
   | EqualityExpression x' -> emit_equality_expression state x'
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_and_expression: Not implemented\n" ;
       state
 
 and emit_exclusive_or_expression state x =
   match x with
   | AndExpression x' -> emit_and_expression state x'
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_exclusive_or_expression: Not implemented\n" ;
       state
 
 and emit_inclusive_or_expression state x =
   match x with
   | ExclusiveOr x' -> emit_exclusive_or_expression state x'
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_inclusive_or_expression: Not implemented\n" ;
       state
 
 and emit_logical_and_expression state x =
   match x with
   | InclusiveOrExpression x' -> emit_inclusive_or_expression state x'
   | _ ->
-      Printf.printf "emit_logical_or_expression: Not implemented\n" ;
+      Printf.printf "emit_logical_and_expression: Not implemented\n" ;
       state
 
 and emit_logical_or_expression state x =
@@ -375,9 +441,27 @@ and emit_conditional_expression state x =
 
 and emit_assignment_expression state x =
   match x with
-  | AssignmentConditionalExpression x' -> emit_conditional_expression state x'
-  | _ ->
-      Printf.printf "emit_assignment_expression: Not implemented\n" ;
+  | AssignmentConditionalExpression x' ->
+      Printf.printf "AssignmentConditionalExpression\n" ;
+      emit_conditional_expression state x'
+  | AssignmentOperation x ->
+      Printf.printf "Emit assignment operation!!!!!!!\n" ;
+      let state =
+        match x.assignment_operator with
+        | Assign _ ->
+            (* Evalulate lhs expression to determine the l-value. Evaluation of
+               this expression should leave the address of the value on top of
+               the stack. At the moment, we can only assign to local variables. *)
+            (* Emit rhs first. *)
+            let state =
+              emit_assignment_expression state x.assignment_expression
+            in
+            (* Make sure stack pointer relative offset is on top of the current
+               stack*)
+            let state = emit_unary_expression state x.unary_expression true in
+            (* Store the value. *)
+            store_stack_offset state
+      in
       state
 
 and emit_expression state (expression : expression) =
@@ -400,18 +484,42 @@ and emit_statement state (statement : statement) =
   | LabeledStatement _ ->
       Printf.printf "LabeledStatement\n" ;
       state
-  | CompoundStatement _ ->
+  | CompoundStatement x ->
       Printf.printf "CompoundStatement\n" ;
-      state
+      List.fold_left emit_block_item state x
   | ExpressionStatement x' -> (
       Printf.printf "ExpressionStatement\n" ;
       match x' with Some x'' -> emit_expression state x'' | None -> state )
   | SelectionStatement _ ->
       Printf.printf "SelectionStatement\n" ;
       state
-  | IterationStatement _ ->
+  | IterationStatement x -> (
       Printf.printf "IterationStatement\n" ;
-      state
+      match x with
+      | While x' ->
+          (* Labels for condition and end. *)
+          let state, condition_label = next_fn_label state in
+          let state, end_label = next_fn_label state in
+          (* Mark start of loop, before expression. *)
+          let state =
+            emit_opcode state
+              (FlowControl (Mark (string_of_int condition_label)))
+          in
+          (* Evaluate expression. *)
+          let state = emit_expression state x'.expression in
+          let state =
+            emit_opcode state (FlowControl (JumpZero (string_of_int end_label)))
+          in
+          (* Emit body. *)
+          let state = emit_statement state x'.body in
+          (* Unconditional jump. *)
+          let state =
+            emit_opcode state
+              (FlowControl (UnconditionalJump (string_of_int condition_label)))
+          in
+          (* End label *)
+          emit_opcode state (FlowControl (Mark (string_of_int end_label)))
+      | _ -> state )
   | JumpStatement _ ->
       Printf.printf "JumpStatement\n" ;
       state
