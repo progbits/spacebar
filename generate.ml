@@ -243,7 +243,7 @@ let emit_puti state =
   state
 
 (* Emit opcodes for a primary expression. *)
-let emit_primary_expression state expr lvalue =
+let rec emit_primary_expression state expr lvalue =
   match expr with
   | Identifier x' ->
       let offset = find_offset state x' in
@@ -254,12 +254,13 @@ let emit_primary_expression state expr lvalue =
   | Constant x' ->
       Printf.eprintf "Emit Constant %d\n" x' ;
       emit_opcode state (StackManipulation (Push x'))
+  | Expression x' -> emit_expression state x'
   | _ ->
       Printf.eprintf "emit_primary_expression: Not implemented\n" ;
       state
 
 (* Emit a postfix expression. *)
-let rec emit_postfix_expression state x lvalue =
+and emit_postfix_expression state x lvalue =
   match x with
   | PrimaryExpression x' -> emit_primary_expression state x' lvalue
   | FunctionCall x' ->
@@ -316,15 +317,29 @@ and emit_unary_expression state x lvalue =
 and emit_multiplicative_expression state x =
   match x with
   | CastExpression x' -> emit_unary_expression state x' false
-  | _ ->
-      Printf.eprintf "emit_multiplicative_expression: Not implemented\n" ;
-      state
+  | MultiplicativeProduct x' ->
+      let state =
+        emit_multiplicative_expression state x'.multiplicative_expression
+      in
+      let state = emit_unary_expression state x'.cast_expression false in
+      emit_opcode state (Arithmetic Multiplication)
+  | MultiplicativeDivision x' ->
+      let state =
+        emit_multiplicative_expression state x'.multiplicative_expression
+      in
+      let state = emit_unary_expression state x'.cast_expression false in
+      emit_opcode state (Arithmetic Division)
+  | MultiplicativeRemainder x' ->
+      let state =
+        emit_multiplicative_expression state x'.multiplicative_expression
+      in
+      let state = emit_unary_expression state x'.cast_expression false in
+      emit_opcode state (Arithmetic Modulo)
 
 and emit_additive_expression state x =
   match x with
   | MultiplicativeExpression x' -> emit_multiplicative_expression state x'
   | AdditiveAdditionExpression x' ->
-      Printf.eprintf "AdditiveAdditionExpression!!!!\n" ;
       let state = emit_additive_expression state x'.additive_expression in
       let state =
         emit_multiplicative_expression state x'.multiplicative_expression

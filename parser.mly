@@ -374,10 +374,10 @@ multiplicative_expression:
       Ast.MultiplicativeProduct {multiplicative_expression=x; cast_expression=y}
     }
     | x = multiplicative_expression; "/"; y = cast_expression {
-      Ast.MultiplicativeProduct {multiplicative_expression=x; cast_expression=y}
+      Ast.MultiplicativeDivision {multiplicative_expression=x; cast_expression=y}
     }
     | x = multiplicative_expression; "%"; y = cast_expression {
-      Ast.MultiplicativeProduct {multiplicative_expression=x; cast_expression=y}
+      Ast.MultiplicativeRemainder {multiplicative_expression=x; cast_expression=y}
     }
 
 (* 6.5.4 *)
