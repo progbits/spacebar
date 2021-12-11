@@ -194,7 +194,9 @@ argument_expression_list:
 (* 6.5.3 *)
 unary_expression:
     | postfix_expression { Ast.PostfixExpression $1 }
-    // | unary_operator cast_expression { }
+    | unary_operator cast_expression {
+      Ast.UnaryOperator {operator=$1; unary_expression=$2 }
+    }
 
 (* 6.7 *)
 declaration:
@@ -387,12 +389,12 @@ cast_expression:
 
 (* 6.5.3 *)
 unary_operator:
-    | "&" { AddressOf }
-    | "*" { PointerDereference }
-    | "+" { UnaryPlus }
-    | "-" { UnaryMinus }
-    | "~" { UnaryBitwiseNot }
-    | "!" { UnaryNot }
+    | "&" { AddressOf () }
+    | "*" { PointerDereference () }
+    | "+" { UnaryPlus () }
+    | "-" { UnaryMinus () }
+    | "~" { UnaryBitwiseNot () }
+    | "!" { UnaryNot () }
 
 (* 6.7.9 *)
 initializerr:

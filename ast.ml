@@ -82,7 +82,7 @@ and unary_expression =
 (* 6.5.3 *)
 and unary_operator =
   | AddressOf of unit
-  | PointeDereference of unit
+  | PointerDereference of unit
   | UnaryPlus of unit
   | UnaryMinus of unit
   | UnaryBitwiseNot of unit
