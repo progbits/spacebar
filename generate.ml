@@ -1,6 +1,8 @@
 open Ast
 open Whitespace
 
+exception Spacebar_Exception
+
 exception Duplicate_Function_Definition
 
 exception Symbol_Not_Found
@@ -157,6 +159,16 @@ let load_rbp_rel state offset =
   in
   List.fold_left emit_opcode state ops
 
+(* Push a value offset relative to rbp onto the stack. *)
+let push_rbp_rel_offset state offset =
+  let ops =
+    [ StackManipulation (Push 1)
+    ; HeapAccess Retrieve
+    ; StackManipulation (Push offset)
+    ; Arithmetic Addtion ]
+  in
+  List.fold_left emit_opcode state ops
+
 (* Store the current value of rsp in rbp. *)
 let set_rsp state =
   let ops =
@@ -230,6 +242,17 @@ let restore_rsp state =
     ; HeapAccess Store ]
   in
   List.fold_left emit_opcode state ops
+
+(* Emit the built-in function geti and return the function label. *)
+let emit_geti state =
+  (* Add the function to the symbol table and emit the function label. *)
+  let state, label = add_fn state "geti" in
+  let state = emit_opcode state (FlowControl (Mark label)) in
+  (* Load the output location and read the number. *)
+  let state = load_rbp_rel state (-2) in
+  let state = emit_opcode state (IO ReadNumber) in
+  let state = emit_opcode state (FlowControl EndSubroutine) in
+  state
 
 (* Emit the built-in function puti and return the function label. *)
 let emit_puti state =
@@ -307,12 +330,50 @@ and emit_postfix_expression state x lvalue =
       Printf.eprintf "emit_postfix_expression: Not implemented\n" ;
       state
 
+(* Lookup the offset of a unary expression in the symbol table. *)
+and unary_expr_offset state expr =
+  match expr with
+  | PostfixExpression x -> (
+    match x with
+    | PrimaryExpression x' -> (
+      match x' with
+      | Identifier x'' -> find_offset state x''
+      | _ -> raise Spacebar_Exception )
+    | _ -> raise Spacebar_Exception )
+  | _ -> raise Spacebar_Exception
+
 and emit_unary_expression state x lvalue =
   match x with
   | PostfixExpression x' -> emit_postfix_expression state x' lvalue
-  | _ ->
-      Printf.eprintf "emit_unary_expression: Not implemented\n" ;
+  | PrefixIncrement _ ->
+      Printf.eprintf "emit_unary_expression: PrefixIncrement Not implemented\n" ;
       state
+  | PrefixDecrement _ ->
+      Printf.eprintf "emit_unary_expression: PrefixDecrement Not implemented\n" ;
+      state
+  | UnaryOperator x' -> (
+    match x'.operator with
+    | AddressOf _ ->
+        (* Look up the offset of the lvalue expression. *)
+        let offset = unary_expr_offset state x'.unary_expression in
+        Printf.eprintf "AddressOf: Pushed value %d from rbp to stack\n" offset ;
+        push_rbp_rel_offset state offset
+        (* Push the value to the top of the stack. *)
+    | PointerDereference _ ->
+        Printf.eprintf "PointerDereference Not implemented\n" ;
+        state
+    | UnaryPlus _ ->
+        Printf.eprintf "UnaryPlus Not implemented\n" ;
+        state
+    | UnaryMinus _ ->
+        Printf.eprintf "UnaryMinus Not implemented\n" ;
+        state
+    | UnaryBitwiseNot _ ->
+        Printf.eprintf "UnaryBitwiseNot Not implemented\n" ;
+        state
+    | UnaryNot _ ->
+        Printf.eprintf "UnaryNot Not implemented\n" ;
+        state )
 
 and emit_multiplicative_expression state x =
   match x with
@@ -622,7 +683,9 @@ let emit_prog_prolog state =
   List.fold_left emit_opcode state ops
 
 (* Emit bytecode for built in functions, whether we call them or not. *)
-let emit_build_ins state = emit_puti state
+let emit_build_ins state =
+  let state = emit_puti state in
+  emit_geti state
 
 (* Generate Whitespace bytecode from an abstract syntac tree. *)
 let generate (x : external_declaration list) =
