@@ -1,3 +1,3 @@
 int main() {
-  puti(42);
+  putc(42);
 }

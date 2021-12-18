@@ -25,7 +25,7 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
 @test "basic_function" {
     output="$(cat test/basic_function.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output
-    [ "$output" == "+Done." ]
+    [ "$output" == "43Done." ]
 }
 
 @test "basic_while" {
@@ -37,6 +37,8 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
 @test "basic_arith" {
     output="$(cat test/basic_arith.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output
-    [ "$output" == "XDone." ]
+    [ "$output" == "89Done." ]
+}
+
 }
 

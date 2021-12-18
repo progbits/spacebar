@@ -261,6 +261,17 @@ let emit_puti state =
   let state = emit_opcode state (FlowControl (Mark label)) in
   (* Load and output the argument. *)
   let state = load_rbp_rel state (-2) in
+  let state = emit_opcode state (IO OutputNumber) in
+  let state = emit_opcode state (FlowControl EndSubroutine) in
+  state
+
+(* Emit the built-in function putc and return the function label. *)
+let emit_putc state =
+  (* Add the function to the symbol table and emit the function label. *)
+  let state, label = add_fn state "putc" in
+  let state = emit_opcode state (FlowControl (Mark label)) in
+  (* Load and output the argument. *)
+  let state = load_rbp_rel state (-2) in
   let state = emit_opcode state (IO OutputCharacter) in
   let state = emit_opcode state (FlowControl EndSubroutine) in
   state
@@ -685,6 +696,7 @@ let emit_prog_prolog state =
 (* Emit bytecode for built in functions, whether we call them or not. *)
 let emit_build_ins state =
   let state = emit_puti state in
+  let state = emit_putc state in
   emit_geti state
 
 (* Generate Whitespace bytecode from an abstract syntac tree. *)
