@@ -40,5 +40,9 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "89Done." ]
 }
 
+@test "basic_pointer" {
+    output="$(cat test/basic_pointer.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "42Done." ]
 }
 

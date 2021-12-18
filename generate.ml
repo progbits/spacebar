@@ -243,6 +243,19 @@ let restore_rsp state =
   in
   List.fold_left emit_opcode state ops
 
+(* Push the absolute address of [rbp + offset]. This is functionally equivilent
+   to the x86 LEA instruction with the register fixed to rbp*)
+let push_abs_addr state offset =
+  (* Load rbp to the top of the stack. *)
+  let ops =
+    [ StackManipulation (Push 1)
+    ; HeapAccess Retrieve (* Load rbp *)
+    ; StackManipulation (Push offset)
+    ; Arithmetic Addtion ]
+    (* Add offset to get abs address. *)
+  in
+  List.fold_left emit_opcode state ops
+
 (* Emit the built-in function geti and return the function label. *)
 let emit_geti state =
   (* Add the function to the symbol table and emit the function label. *)
@@ -365,14 +378,17 @@ and emit_unary_expression state x lvalue =
   | UnaryOperator x' -> (
     match x'.operator with
     | AddressOf _ ->
-        (* Look up the offset of the lvalue expression. *)
+        (* Look up the offset of the lvalue expression from rbp. *)
         let offset = unary_expr_offset state x'.unary_expression in
         Printf.eprintf "AddressOf: Pushed value %d from rbp to stack\n" offset ;
-        push_rbp_rel_offset state offset
-        (* Push the value to the top of the stack. *)
+        (* Emit the absolute address of the expression. *)
+        push_abs_addr state offset
     | PointerDereference _ ->
-        Printf.eprintf "PointerDereference Not implemented\n" ;
-        state
+        Printf.eprintf "!!! pointer-dereference: %b\n" lvalue ;
+        (* Evaluate the expression so the address is on top of the stack. *)
+        let state = emit_unary_expression state x'.unary_expression lvalue in
+        (* Load the value at the absolute address. *)
+        emit_opcode state (HeapAccess Retrieve)
     | UnaryPlus _ ->
         Printf.eprintf "UnaryPlus Not implemented\n" ;
         state
