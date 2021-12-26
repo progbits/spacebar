@@ -98,7 +98,9 @@ let find_offset state var_name =
   Printf.eprintf "find_offset %s\n" var_name ;
   let rec find symbol_table var_name =
     match symbol_table with
-    | [] -> raise Symbol_Not_Found
+    | [] ->
+        Printf.eprintf " Failed to find var %s\n" var_name ;
+        raise Symbol_Not_Found
     | h :: t -> (
       match h with
       | Argument x -> if var_name = x.name then x.offset else find t var_name
@@ -448,17 +450,20 @@ and emit_relational_expression state x =
   match x with
   | ShiftExpression x' -> emit_shift_expression state x'
   | LessThanExpression x' ->
-      (* rhs - lhs *)
-      let state = emit_shift_expression state x'.shift_expression in
-      let state = emit_relational_expression state x'.relational_expression in
-      let state = emit_opcode state (Arithmetic Subtraction) in
+      (* True if (lhs - rhs) is negative. *)
       let state, negative_label = next_fn_label state in
       let state, end_label = next_fn_label state in
+      let state = emit_relational_expression state x'.relational_expression in
+      (* LHS *)
+      let state = emit_shift_expression state x'.shift_expression in
+      (* RHS *)
+      let state = emit_opcode state (Arithmetic Subtraction) in
+      (* LHS - RHS *)
       let state =
         emit_opcode state
           (FlowControl (JumpNegative (string_of_int negative_label)))
       in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state = emit_opcode state (StackManipulation (Push 0)) in
       let state =
         emit_opcode state
           (FlowControl (UnconditionalJump (string_of_int end_label)))
@@ -466,23 +471,23 @@ and emit_relational_expression state x =
       let state =
         emit_opcode state (FlowControl (Mark (string_of_int negative_label)))
       in
-      let state = emit_opcode state (StackManipulation (Push 0)) in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
       emit_opcode state (FlowControl (Mark (string_of_int end_label)))
   | GreaterThanExpression x' ->
-      (* rhs - lhs *)
-      let state = emit_shift_expression state x'.shift_expression in
-      let state = emit_relational_expression state x'.relational_expression in
-      let state = emit_opcode state (Arithmetic Subtraction) in
+      (* True if (lhs - rhs) is NOT negative. *)
       let state, negative_label = next_fn_label state in
+      let state = emit_relational_expression state x'.relational_expression in
+      let state = emit_shift_expression state x'.shift_expression in
+      let state = emit_opcode state (Arithmetic Subtraction) in
       let state =
         emit_opcode state
           (FlowControl (JumpNegative (string_of_int negative_label)))
       in
-      let state = emit_opcode state (StackManipulation (Push 0)) in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
       let state =
         emit_opcode state (FlowControl (Mark (string_of_int negative_label)))
       in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state = emit_opcode state (StackManipulation (Push 0)) in
       state
   | LessThanEqualThanExpression x' ->
       let state = emit_relational_expression state x'.relational_expression in
@@ -593,9 +598,25 @@ and emit_statement state (statement : statement) =
   | ExpressionStatement x' -> (
       Printf.eprintf "ExpressionStatement\n" ;
       match x' with Some x'' -> emit_expression state x'' | None -> state )
-  | SelectionStatement _ ->
+  | SelectionStatement x -> (
       Printf.eprintf "SelectionStatement\n" ;
-      state
+      match x with
+      | If x' ->
+          (* Label for conditional jump. *)
+          let state, skip_condition_label = next_fn_label state in
+          (* Evaluate expression and jump if false. *)
+          let state = emit_expression state x'.expression in
+          let state =
+            emit_opcode state
+              (FlowControl (JumpZero (string_of_int skip_condition_label)))
+          in
+          (* Emit body of condition. *)
+          let state = emit_statement state x'.body in
+          (* Mark label for skipping conditional body. *)
+          emit_opcode state
+            (FlowControl (Mark (string_of_int skip_condition_label)))
+      | IfElse _ -> state
+      | Switch _ -> state )
   | IterationStatement x -> (
       Printf.eprintf "IterationStatement\n" ;
       match x with
@@ -624,20 +645,21 @@ and emit_statement state (statement : statement) =
           emit_opcode state (FlowControl (Mark (string_of_int end_label)))
       | _ -> state )
   | JumpStatement x -> (
-    match x with
-    | Goto _ ->
-        Printf.eprintf "Unsupported Goto Statement\n" ;
-        state
-    | Continue ->
-        Printf.eprintf "Unsupported Continue Statement\n" ;
-        state
-    | Break ->
-        Printf.eprintf "Unsupported Break Statement\n" ;
-        state
-    | Return x' -> (
-      match x'.expression with
-      | Some x'' -> emit_expression state x''
-      | None -> state ) )
+      Printf.eprintf "Emitting JumpStatement\n" ;
+      match x with
+      | Goto _ ->
+          Printf.eprintf "Unsupported Goto Statement\n" ;
+          state
+      | Continue ->
+          Printf.eprintf "Unsupported Continue Statement\n" ;
+          state
+      | Break ->
+          Printf.eprintf "Unsupported Break Statement\n" ;
+          state
+      | Return x' -> (
+        match x'.expression with
+        | Some x'' -> emit_expression state x''
+        | None -> state ) )
 
 (* Emit a function definition. *)
 and emit_fn_def state (fn_def : function_definition) =
