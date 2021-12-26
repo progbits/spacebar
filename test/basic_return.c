@@ -1,8 +1,17 @@
+int baz() {
+  return 41;
+}
+
+int bar() {
+  return baz() + 1;
+}
+
 int foo() {
-  return 43;
+  return bar() + 1;
 }
 
 int main() {
   int a = foo();
+  foo();
   puti(a);
 }
