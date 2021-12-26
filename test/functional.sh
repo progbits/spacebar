@@ -28,6 +28,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "43Done." ]
 }
 
+@test "basic_return" {
+    output="$(cat test/basic_return.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "43Done." ]
+}
+
 @test "basic_while" {
     output="$(cat test/basic_while.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output

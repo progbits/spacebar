@@ -623,9 +623,21 @@ and emit_statement state (statement : statement) =
           (* End label *)
           emit_opcode state (FlowControl (Mark (string_of_int end_label)))
       | _ -> state )
-  | JumpStatement _ ->
-      Printf.eprintf "JumpStatement\n" ;
-      state
+  | JumpStatement x -> (
+    match x with
+    | Goto _ ->
+        Printf.eprintf "Unsupported Goto Statement\n" ;
+        state
+    | Continue ->
+        Printf.eprintf "Unsupported Continue Statement\n" ;
+        state
+    | Break ->
+        Printf.eprintf "Unsupported Break Statement\n" ;
+        state
+    | Return x' -> (
+      match x'.expression with
+      | Some x'' -> emit_expression state x''
+      | None -> state ) )
 
 (* Emit a function definition. *)
 and emit_fn_def state (fn_def : function_definition) =
