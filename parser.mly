@@ -424,7 +424,7 @@ statement:
     | expression_statement { Ast.ExpressionStatement $1 }
     | selection_statement { Ast.SelectionStatement $1 }
     | iteration_statement { Ast.IterationStatement $1 }
-    // | jump_statement { }
+    | jump_statement { Ast.JumpStatement $1 }
 
 labeled_statement:
     | IDENTIFIER COLON statement { }
@@ -468,4 +468,11 @@ iteration_statement:
       Ast.For {init=x; condition=y; iteration=z; body=w}
     }
     (*| FOR "(" declaration option(expression) ";" option(expression) ")" statement { }*)
+
+jump_statement:
+    | GOTO; id = IDENTIFIER { Ast.Goto id }
+    | CONTINUE { Ast.Continue }
+    | BREAK { Ast.Break }
+    | RETURN; x = expression? { Ast.Return {expression=x} }
+
 ;

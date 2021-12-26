@@ -215,7 +215,7 @@ type statement =
   | ExpressionStatement of expression option
   | SelectionStatement of selection_statement
   | IterationStatement of iteration_statement
-  | JumpStatement of string
+  | JumpStatement of jump_statement
 
 (* 6.8.1 *)
 (*and labeled_statement = *)
@@ -236,6 +236,12 @@ and iteration_statement =
       ; condition: expression option
       ; iteration: expression option
       ; body: statement }
+
+and jump_statement =
+  | Goto of string
+  | Continue
+  | Break
+  | Return of {expression: expression option}
 
 (* 6.9.1 *)
 type function_definition =

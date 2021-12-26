@@ -186,7 +186,7 @@ type statement =
   | ExpressionStatement of expression option
   | SelectionStatement of selection_statement
   | IterationStatement of iteration_statement
-  | JumpStatement of string
+  | JumpStatement of jump_statement
 
 and block_item = Declaration of declaration | Statement of statement
 
@@ -203,6 +203,12 @@ and iteration_statement =
       ; condition: expression option
       ; iteration: expression option
       ; body: statement }
+
+and jump_statement =
+  | Goto of string
+  | Continue
+  | Break
+  | Return of {expression: expression option}
 
 type function_definition =
   { declaration_specifiers: declaration_specifiers
