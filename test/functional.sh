@@ -70,3 +70,8 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "42Done." ]
 }
 
+@test "fibonacci" {
+    output="$(cat test/fib.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "233 Done." ]
+}
