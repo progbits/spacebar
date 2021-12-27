@@ -400,8 +400,9 @@ and emit_unary_expression state x lvalue =
         Printf.eprintf "UnaryPlus Not implemented\n" ;
         state
     | UnaryMinus _ ->
-        Printf.eprintf "UnaryMinus Not implemented\n" ;
-        state
+        let state = emit_opcode state (StackManipulation (Push 0)) in
+        let state = emit_unary_expression state x'.unary_expression lvalue in
+        emit_opcode state (Arithmetic Subtraction)
     | UnaryBitwiseNot _ ->
         Printf.eprintf "UnaryBitwiseNot Not implemented\n" ;
         state
