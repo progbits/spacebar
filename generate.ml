@@ -23,6 +23,7 @@ type state =
   { ops: imp list
   ; next_fn_label: int
   ; symbol_table: symbol list
+  ; iter_stmt_start_label: string option
   ; iter_stmt_end_label: string option }
 
 (* Return the next avaliable label. *)
@@ -510,9 +511,44 @@ and emit_relational_expression state x =
 and emit_equality_expression state x =
   match x with
   | RelationalExpression x' -> emit_relational_expression state x'
-  | _ ->
-      Printf.eprintf "emit_equality_expression: Not implemented\n" ;
-      state
+  | EqualToExpression x' ->
+      let state, zero_label = next_fn_label state in
+      let state, end_label = next_fn_label state in
+      let state = emit_equality_expression state x'.equality_expression in
+      let state = emit_relational_expression state x'.relational_expression in
+      let state = emit_opcode state (Arithmetic Subtraction) in
+      let state =
+        emit_opcode state (FlowControl (JumpZero (string_of_int zero_label)))
+      in
+      let state = emit_opcode state (StackManipulation (Push 0)) in
+      let state =
+        emit_opcode state
+          (FlowControl (UnconditionalJump (string_of_int end_label)))
+      in
+      let state =
+        emit_opcode state (FlowControl (Mark (string_of_int zero_label)))
+      in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
+      emit_opcode state (FlowControl (Mark (string_of_int end_label)))
+  | NotEqualToExpression x' ->
+      let state, zero_label = next_fn_label state in
+      let state, end_label = next_fn_label state in
+      let state = emit_equality_expression state x'.equality_expression in
+      let state = emit_relational_expression state x'.relational_expression in
+      let state = emit_opcode state (Arithmetic Subtraction) in
+      let state =
+        emit_opcode state (FlowControl (JumpZero (string_of_int zero_label)))
+      in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state =
+        emit_opcode state
+          (FlowControl (UnconditionalJump (string_of_int end_label)))
+      in
+      let state =
+        emit_opcode state (FlowControl (Mark (string_of_int zero_label)))
+      in
+      let state = emit_opcode state (StackManipulation (Push 0)) in
+      emit_opcode state (FlowControl (Mark (string_of_int end_label)))
 
 and emit_and_expression state x =
   match x with
@@ -634,7 +670,9 @@ and emit_statement state (statement : statement) =
           let state, condition_label = next_fn_label state in
           let state, end_label = next_fn_label state in
           let state =
-            {state with iter_stmt_end_label= Some (string_of_int end_label)}
+            { state with
+              iter_stmt_end_label= Some (string_of_int end_label)
+            ; iter_stmt_start_label= Some (string_of_int condition_label) }
           in
           (* Mark start of loop, before expression. *)
           let state =
@@ -662,9 +700,11 @@ and emit_statement state (statement : statement) =
       | Goto _ ->
           Printf.eprintf "Unsupported Goto Statement\n" ;
           state
-      | Continue ->
-          Printf.eprintf "Unsupported Continue Statement\n" ;
-          state
+      | Continue -> (
+        (* Unconditionally jump to iteration statement condition label. *)
+        match state.iter_stmt_start_label with
+        | Some label -> emit_opcode state (FlowControl (UnconditionalJump label))
+        | None -> raise Spacebar_Exception )
       | Break -> (
         (* Unconditionally jump to the currently active iteration statement end
            label. *)
@@ -767,7 +807,11 @@ let emit_build_ins state =
 (* Generate Whitespace bytecode from an abstract syntac tree. *)
 let generate (x : external_declaration list) =
   let state =
-    {ops= []; next_fn_label= 1; symbol_table= []; iter_stmt_end_label= None}
+    { ops= []
+    ; next_fn_label= 1
+    ; symbol_table= []
+    ; iter_stmt_end_label= None
+    ; iter_stmt_start_label= None }
   in
   let state = emit_prog_prolog state in
   let state, _ = add_fn state "main" in
