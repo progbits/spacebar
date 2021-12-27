@@ -46,6 +46,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "*+,-./0123Done." ]
 }
 
+@test "basic_while_break" {
+    output="$(cat test/basic_while_break.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "1234567891042Done." ]
+}
+
 @test "basic_arith" {
     output="$(cat test/basic_arith.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output

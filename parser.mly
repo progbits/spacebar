@@ -340,13 +340,13 @@ relational_expression:
       Ast.LessThanExpression {relational_expression=x; shift_expression=y}
     }
     | x = relational_expression; ">"; y = shift_expression {
-      Ast.LessThanExpression {relational_expression=x; shift_expression=y}
+      Ast.GreaterThanExpression {relational_expression=x; shift_expression=y}
     }
     | x = relational_expression; "<="; y = shift_expression {
-      Ast.LessThanExpression {relational_expression=x; shift_expression=y}
+      Ast.LessThanEqualThanExpression {relational_expression=x; shift_expression=y}
     }
     | x = relational_expression; ">="; y = shift_expression {
-      Ast.LessThanExpression {relational_expression=x; shift_expression=y}
+      Ast.GreaterThanEqualExpression {relational_expression=x; shift_expression=y}
     }
 
 (* 6.5.8 *)

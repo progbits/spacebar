@@ -19,7 +19,11 @@ type symbol =
 (* The current state of the code generator. Stores the list of generated opcodes
    and the symbol table. The symbol table is a list of symbols, this isn't the
    most efficient structure, but its easy. *)
-type state = {ops: imp list; next_fn_label: int; symbol_table: symbol list}
+type state =
+  { ops: imp list
+  ; next_fn_label: int
+  ; symbol_table: symbol list
+  ; iter_stmt_end_label: string option }
 
 (* Return the next avaliable label. *)
 let next_fn_label state =
@@ -476,6 +480,7 @@ and emit_relational_expression state x =
   | GreaterThanExpression x' ->
       (* True if (lhs - rhs) is NOT negative. *)
       let state, negative_label = next_fn_label state in
+      let state, end_label = next_fn_label state in
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_shift_expression state x'.shift_expression in
       let state = emit_opcode state (Arithmetic Subtraction) in
@@ -485,10 +490,14 @@ and emit_relational_expression state x =
       in
       let state = emit_opcode state (StackManipulation (Push 1)) in
       let state =
+        emit_opcode state
+          (FlowControl (UnconditionalJump (string_of_int end_label)))
+      in
+      let state =
         emit_opcode state (FlowControl (Mark (string_of_int negative_label)))
       in
       let state = emit_opcode state (StackManipulation (Push 0)) in
-      state
+      emit_opcode state (FlowControl (Mark (string_of_int end_label)))
   | LessThanEqualThanExpression x' ->
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_shift_expression state x'.shift_expression in
@@ -624,6 +633,9 @@ and emit_statement state (statement : statement) =
           (* Labels for condition and end. *)
           let state, condition_label = next_fn_label state in
           let state, end_label = next_fn_label state in
+          let state =
+            {state with iter_stmt_end_label= Some (string_of_int end_label)}
+          in
           (* Mark start of loop, before expression. *)
           let state =
             emit_opcode state
@@ -653,9 +665,12 @@ and emit_statement state (statement : statement) =
       | Continue ->
           Printf.eprintf "Unsupported Continue Statement\n" ;
           state
-      | Break ->
-          Printf.eprintf "Unsupported Break Statement\n" ;
-          state
+      | Break -> (
+        (* Unconditionally jump to the currently active iteration statement end
+           label. *)
+        match state.iter_stmt_end_label with
+        | Some label -> emit_opcode state (FlowControl (UnconditionalJump label))
+        | None -> raise Spacebar_Exception )
       | Return x' -> (
         match x'.expression with
         | Some x'' -> emit_expression state x''
@@ -751,7 +766,9 @@ let emit_build_ins state =
 
 (* Generate Whitespace bytecode from an abstract syntac tree. *)
 let generate (x : external_declaration list) =
-  let state = {ops= []; next_fn_label= 1; symbol_table= []} in
+  let state =
+    {ops= []; next_fn_label= 1; symbol_table= []; iter_stmt_end_label= None}
+  in
   let state = emit_prog_prolog state in
   let state, _ = add_fn state "main" in
   let state = emit_build_ins state in
