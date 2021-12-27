@@ -717,8 +717,10 @@ and emit_statement state (statement : statement) =
         | None -> raise Spacebar_Exception )
       | Return x' -> (
         match x'.expression with
-        | Some x'' -> emit_expression state x''
-        | None -> state ) )
+        | Some x'' ->
+            let state = emit_expression state x'' in
+            emit_opcode state (FlowControl EndSubroutine)
+        | None -> emit_opcode state (FlowControl EndSubroutine) ) )
 
 (* Emit a function definition. *)
 and emit_fn_def state (fn_def : function_definition) =
