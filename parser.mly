@@ -366,7 +366,7 @@ additive_expression:
       Ast.AdditiveAdditionExpression {additive_expression=x; multiplicative_expression=y}
     }
     | x = additive_expression; "-"; y = multiplicative_expression {
-      Ast.AdditiveAdditionExpression {additive_expression=x; multiplicative_expression=y}
+      Ast.AdditiveSubtractionExpression {additive_expression=x; multiplicative_expression=y}
     }
 
 (* 6.5.5 *)

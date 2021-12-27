@@ -440,9 +440,12 @@ and emit_additive_expression state x =
         emit_multiplicative_expression state x'.multiplicative_expression
       in
       emit_opcode state (Arithmetic Addtion)
-  | _ ->
-      Printf.eprintf "emit_additive_expression: Not implemented\n" ;
-      state
+  | AdditiveSubtractionExpression x' ->
+      let state = emit_additive_expression state x'.additive_expression in
+      let state =
+        emit_multiplicative_expression state x'.multiplicative_expression
+      in
+      emit_opcode state (Arithmetic Subtraction)
 
 and emit_shift_expression state x =
   match x with
