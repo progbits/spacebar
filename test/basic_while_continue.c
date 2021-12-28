@@ -14,6 +14,6 @@ int main() {
       continue;
     }
     puti(i);
+    putc(32);
   }
-  puti(42);
 }

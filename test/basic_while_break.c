@@ -3,9 +3,9 @@ int main() {
   while(1) {
     i = i + 1;
     puti(i);
+    putc(32);
     if (i > 10) {
       break;
     }
   }
-  puti(42);
 }

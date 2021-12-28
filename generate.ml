@@ -486,18 +486,23 @@ and emit_relational_expression state x =
   | GreaterThanExpression x' ->
       (* True if (lhs - rhs) is NOT negative. *)
       let state, negative_label = next_fn_label state in
+      let state, zero_label = next_fn_label state in
       let state, end_label = next_fn_label state in
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_shift_expression state x'.shift_expression in
       let state = emit_opcode state (Arithmetic Subtraction) in
+      let state = emit_opcode state (StackManipulation Duplicate) in
       let state =
         emit_opcode state (FlowControl (JumpNegative negative_label))
       in
+      let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
       let state = emit_opcode state (StackManipulation (Push 1)) in
       let state =
         emit_opcode state (FlowControl (UnconditionalJump end_label))
       in
       let state = emit_opcode state (FlowControl (Mark negative_label)) in
+      let state = emit_opcode state (StackManipulation Discard) in
+      let state = emit_opcode state (FlowControl (Mark zero_label)) in
       let state = emit_opcode state (StackManipulation (Push 0)) in
       emit_opcode state (FlowControl (Mark end_label))
   | LessThanEqualThanExpression x' ->
