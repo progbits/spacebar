@@ -12,7 +12,7 @@ exception Function_Not_Found
 (* An entry in the symbol table. *)
 type symbol =
   | Global of {scope: int; name: string; offset: int}
-  | Function of {scope: int; name: string; label: string}
+  | Function of {scope: int; name: string; label: int}
   | Argument of {scope: int; fn_name: string; name: string; offset: int}
   | Variable of {scope: int; name: string; offset: int}
 
@@ -23,8 +23,8 @@ type state =
   { ops: imp list
   ; next_fn_label: int
   ; symbol_table: symbol list
-  ; iter_stmt_start_label: string option
-  ; iter_stmt_end_label: string option }
+  ; iter_stmt_start_label: int option
+  ; iter_stmt_end_label: int option }
 
 (* Return the next avaliable label. *)
 let next_fn_label state =
@@ -49,13 +49,13 @@ let find_fn_label state fn_name =
 let add_fn state fn_name =
   (* Bit of a hack...*)
   if fn_name = "main" then
-    let entry = Function {scope= 0; name= fn_name; label= "0"} in
-    ({state with symbol_table= entry :: state.symbol_table}, "0")
+    let entry = Function {scope= 0; name= fn_name; label= 0} in
+    ({state with symbol_table= entry :: state.symbol_table}, 0)
   else
     (* Get the next avaliable function label. Functions are labelled
        incrementally starting from '1' with label '0' reserved for 'main'.*)
     let state, label =
-      let label = string_of_int state.next_fn_label in
+      let label = state.next_fn_label in
       let next_fn_label = state.next_fn_label + 1 in
       ({state with next_fn_label}, label)
     in
@@ -469,19 +469,15 @@ and emit_relational_expression state x =
       let state = emit_opcode state (Arithmetic Subtraction) in
       (* LHS - RHS *)
       let state =
-        emit_opcode state
-          (FlowControl (JumpNegative (string_of_int negative_label)))
+        emit_opcode state (FlowControl (JumpNegative negative_label))
       in
       let state = emit_opcode state (StackManipulation (Push 0)) in
       let state =
-        emit_opcode state
-          (FlowControl (UnconditionalJump (string_of_int end_label)))
+        emit_opcode state (FlowControl (UnconditionalJump end_label))
       in
-      let state =
-        emit_opcode state (FlowControl (Mark (string_of_int negative_label)))
-      in
+      let state = emit_opcode state (FlowControl (Mark negative_label)) in
       let state = emit_opcode state (StackManipulation (Push 1)) in
-      emit_opcode state (FlowControl (Mark (string_of_int end_label)))
+      emit_opcode state (FlowControl (Mark end_label))
   | GreaterThanExpression x' ->
       (* True if (lhs - rhs) is NOT negative. *)
       let state, negative_label = next_fn_label state in
@@ -490,19 +486,15 @@ and emit_relational_expression state x =
       let state = emit_shift_expression state x'.shift_expression in
       let state = emit_opcode state (Arithmetic Subtraction) in
       let state =
-        emit_opcode state
-          (FlowControl (JumpNegative (string_of_int negative_label)))
+        emit_opcode state (FlowControl (JumpNegative negative_label))
       in
       let state = emit_opcode state (StackManipulation (Push 1)) in
       let state =
-        emit_opcode state
-          (FlowControl (UnconditionalJump (string_of_int end_label)))
+        emit_opcode state (FlowControl (UnconditionalJump end_label))
       in
-      let state =
-        emit_opcode state (FlowControl (Mark (string_of_int negative_label)))
-      in
+      let state = emit_opcode state (FlowControl (Mark negative_label)) in
       let state = emit_opcode state (StackManipulation (Push 0)) in
-      emit_opcode state (FlowControl (Mark (string_of_int end_label)))
+      emit_opcode state (FlowControl (Mark end_label))
   | LessThanEqualThanExpression x' ->
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_shift_expression state x'.shift_expression in
@@ -521,38 +513,28 @@ and emit_equality_expression state x =
       let state = emit_equality_expression state x'.equality_expression in
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_opcode state (Arithmetic Subtraction) in
-      let state =
-        emit_opcode state (FlowControl (JumpZero (string_of_int zero_label)))
-      in
+      let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
       let state = emit_opcode state (StackManipulation (Push 0)) in
       let state =
-        emit_opcode state
-          (FlowControl (UnconditionalJump (string_of_int end_label)))
+        emit_opcode state (FlowControl (UnconditionalJump end_label))
       in
-      let state =
-        emit_opcode state (FlowControl (Mark (string_of_int zero_label)))
-      in
+      let state = emit_opcode state (FlowControl (Mark zero_label)) in
       let state = emit_opcode state (StackManipulation (Push 1)) in
-      emit_opcode state (FlowControl (Mark (string_of_int end_label)))
+      emit_opcode state (FlowControl (Mark end_label))
   | NotEqualToExpression x' ->
       let state, zero_label = next_fn_label state in
       let state, end_label = next_fn_label state in
       let state = emit_equality_expression state x'.equality_expression in
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_opcode state (Arithmetic Subtraction) in
-      let state =
-        emit_opcode state (FlowControl (JumpZero (string_of_int zero_label)))
-      in
+      let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
       let state = emit_opcode state (StackManipulation (Push 1)) in
       let state =
-        emit_opcode state
-          (FlowControl (UnconditionalJump (string_of_int end_label)))
+        emit_opcode state (FlowControl (UnconditionalJump end_label))
       in
-      let state =
-        emit_opcode state (FlowControl (Mark (string_of_int zero_label)))
-      in
+      let state = emit_opcode state (FlowControl (Mark zero_label)) in
       let state = emit_opcode state (StackManipulation (Push 0)) in
-      emit_opcode state (FlowControl (Mark (string_of_int end_label)))
+      emit_opcode state (FlowControl (Mark end_label))
 
 and emit_and_expression state x =
   match x with
@@ -656,14 +638,12 @@ and emit_statement state (statement : statement) =
           (* Evaluate expression and jump if false. *)
           let state = emit_expression state x'.expression in
           let state =
-            emit_opcode state
-              (FlowControl (JumpZero (string_of_int skip_condition_label)))
+            emit_opcode state (FlowControl (JumpZero skip_condition_label))
           in
           (* Emit body of condition. *)
           let state = emit_statement state x'.body in
           (* Mark label for skipping conditional body. *)
-          emit_opcode state
-            (FlowControl (Mark (string_of_int skip_condition_label)))
+          emit_opcode state (FlowControl (Mark skip_condition_label))
       | IfElse _ -> state
       | Switch _ -> state )
   | IterationStatement x -> (
@@ -675,28 +655,22 @@ and emit_statement state (statement : statement) =
           let state, end_label = next_fn_label state in
           let state =
             { state with
-              iter_stmt_end_label= Some (string_of_int end_label)
-            ; iter_stmt_start_label= Some (string_of_int condition_label) }
+              iter_stmt_end_label= Some end_label
+            ; iter_stmt_start_label= Some condition_label }
           in
           (* Mark start of loop, before expression. *)
-          let state =
-            emit_opcode state
-              (FlowControl (Mark (string_of_int condition_label)))
-          in
+          let state = emit_opcode state (FlowControl (Mark condition_label)) in
           (* Evaluate expression. *)
           let state = emit_expression state x'.expression in
-          let state =
-            emit_opcode state (FlowControl (JumpZero (string_of_int end_label)))
-          in
+          let state = emit_opcode state (FlowControl (JumpZero end_label)) in
           (* Emit body. *)
           let state = emit_statement state x'.body in
           (* Unconditional jump. *)
           let state =
-            emit_opcode state
-              (FlowControl (UnconditionalJump (string_of_int condition_label)))
+            emit_opcode state (FlowControl (UnconditionalJump condition_label))
           in
           (* End label *)
-          emit_opcode state (FlowControl (Mark (string_of_int end_label)))
+          emit_opcode state (FlowControl (Mark end_label))
       | _ -> state )
   | JumpStatement x -> (
       Printf.eprintf "Emitting JumpStatement\n" ;
@@ -727,7 +701,7 @@ and emit_fn_def state (fn_def : function_definition) =
   (* Add the function to the symbol table. *)
   let fn_name = identifier fn_def.declarator in
   let state, label = add_fn state fn_name in
-  Printf.eprintf "Found function %s with label %s\n" fn_name label ;
+  Printf.eprintf "Found function %s with label %d\n" fn_name label ;
   (* Add the function arguments to the symbol table. *)
   let state =
     match fn_def.declarator.direct_declarator with
@@ -799,7 +773,7 @@ let emit_prog_prolog state =
     ; StackManipulation (Push 1)
     ; StackManipulation (Push 2)
     ; HeapAccess Store
-    ; FlowControl (Call "0")
+    ; FlowControl (Call 0)
     ; FlowControl EndProgram ]
   in
   List.fold_left emit_opcode state ops

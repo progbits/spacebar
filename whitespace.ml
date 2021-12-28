@@ -6,11 +6,11 @@ type heap_acces = Store | Retrieve
 
 (* Flow control instructions *)
 type flow_control =
-  | Mark of string
-  | Call of string
-  | UnconditionalJump of string
-  | JumpZero of string
-  | JumpNegative of string
+  | Mark of int
+  | Call of int
+  | UnconditionalJump of int
+  | JumpZero of int
+  | JumpNegative of int
   | EndSubroutine
   | EndProgram
 
@@ -71,16 +71,11 @@ let print output imp =
     | Retrieve -> Printf.fprintf output "\t\t\t" )
   | FlowControl x -> (
     match x with
-    | Mark x' ->
-        Printf.fprintf output "\n  %s" (encode_number (int_of_string x'))
-    | Call x' ->
-        Printf.fprintf output "\n \t%s" (encode_number (int_of_string x'))
-    | UnconditionalJump x' ->
-        Printf.fprintf output "\n \n%s" (encode_number (int_of_string x'))
-    | JumpZero x' ->
-        Printf.fprintf output "\n\t %s" (encode_number (int_of_string x'))
-    | JumpNegative x' ->
-        Printf.fprintf output "\n\t\t%s" (encode_number (int_of_string x'))
+    | Mark x' -> Printf.fprintf output "\n  %s" (encode_number x')
+    | Call x' -> Printf.fprintf output "\n \t%s" (encode_number x')
+    | UnconditionalJump x' -> Printf.fprintf output "\n \n%s" (encode_number x')
+    | JumpZero x' -> Printf.fprintf output "\n\t %s" (encode_number x')
+    | JumpNegative x' -> Printf.fprintf output "\n\t\t%s" (encode_number x')
     | EndSubroutine -> Printf.fprintf output "\n\t\n"
     | EndProgram -> Printf.fprintf output "\n\n\n" )
   | IO x -> (
