@@ -384,9 +384,14 @@ and emit_unary_expression state x lvalue =
       let state = emit_opcode state (StackManipulation Duplicate) in
       let state = emit_opcode state (StackManipulation (Push offset)) in
       store_stack_offset state
-  | PrefixDecrement _ ->
-      Printf.eprintf "emit_unary_expression: PrefixDecrement Not implemented\n" ;
-      state
+  | PrefixDecrement x' ->
+      let offset = unary_expr_offset state x'.unary_expression in
+      let state = load_rbp_rel state offset in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state = emit_opcode state (Arithmetic Subtraction) in
+      let state = emit_opcode state (StackManipulation Duplicate) in
+      let state = emit_opcode state (StackManipulation (Push offset)) in
+      store_stack_offset state
   | UnaryOperator x' -> (
     match x'.operator with
     | AddressOf _ ->
