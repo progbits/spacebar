@@ -397,7 +397,7 @@ and emit_unary_expression state x lvalue =
         (* Load the value at the absolute address. *)
         emit_opcode state (HeapAccess Retrieve)
     | UnaryPlus _ ->
-        Printf.eprintf "UnaryPlus Not implemented\n" ;
+        (* noop *)
         state
     | UnaryMinus _ ->
         let state = emit_opcode state (StackManipulation (Push 0)) in
