@@ -95,6 +95,8 @@ rule token = parse
     | "!" { BANG }
     | "/" { SLASH }
     | "%" { MOD }
+    | "++" { INC }
+    | "--" { DEC }
     (* | "<<" ->
     | ">>" -> *)
     | "<" { LT }

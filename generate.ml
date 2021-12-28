@@ -376,9 +376,14 @@ and unary_expr_offset state expr =
 and emit_unary_expression state x lvalue =
   match x with
   | PostfixExpression x' -> emit_postfix_expression state x' lvalue
-  | PrefixIncrement _ ->
-      Printf.eprintf "emit_unary_expression: PrefixIncrement Not implemented\n" ;
-      state
+  | PrefixIncrement x' ->
+      let offset = unary_expr_offset state x'.unary_expression in
+      let state = load_rbp_rel state offset in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state = emit_opcode state (Arithmetic Addtion) in
+      let state = emit_opcode state (StackManipulation Duplicate) in
+      let state = emit_opcode state (StackManipulation (Push offset)) in
+      store_stack_offset state
   | PrefixDecrement _ ->
       Printf.eprintf "emit_unary_expression: PrefixDecrement Not implemented\n" ;
       state

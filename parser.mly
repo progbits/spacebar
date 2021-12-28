@@ -71,6 +71,8 @@
 %token MOD "%"
 %token LSHIFT "<<"
 %token RSHIFT ">>"
+%token INC "++"
+%token DEC "--"
 %token LT "<"
 %token GT ">"
 %token LTE "<="
@@ -194,6 +196,12 @@ argument_expression_list:
 (* 6.5.3 *)
 unary_expression:
     | postfix_expression { Ast.PostfixExpression $1 }
+    | INC; x = unary_expression {
+      Ast.PrefixIncrement {unary_expression=x}
+    }
+    | DEC; x = unary_expression {
+      Ast.PrefixDecrement {unary_expression=x}
+    }
     | unary_operator cast_expression {
       Ast.UnaryOperator {operator=$1; unary_expression=$2 }
     }

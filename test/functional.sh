@@ -64,6 +64,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "89Done." ]
 }
 
+@test "basic_prefix_addition" {
+    output="$(cat test/basic_prefix_addition.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "1 2 3 4 5 6 7 8 9 10 Done." ]
+}
+
 @test "basic_pointer" {
     output="$(cat test/basic_pointer.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output
