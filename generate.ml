@@ -357,6 +357,15 @@ and emit_postfix_expression state x lvalue =
       let state = restore_rsp state in
       let state = pop_rbp state in
       sub_rsp state 1
+  | PostfixIncrement x' -> (
+      let offset = unary_expr_offset state (PostfixExpression x'.postfix_expression) in
+      let state = load_rbp_rel state offset in
+      let state = emit_opcode state (StackManipulation Duplicate) in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state = emit_opcode state (Arithmetic Addtion) in
+      let state = emit_opcode state (StackManipulation (Push offset)) in
+      store_stack_offset state
+    )
   | _ ->
       Printf.eprintf "emit_postfix_expression: Not implemented\n" ;
       state

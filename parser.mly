@@ -187,7 +187,12 @@ postfix_expression:
         | Some y' -> Ast.FunctionCall { postfix_expression=x; argument_expression_list=y' }
         | None -> Ast.FunctionCall { postfix_expression=x; argument_expression_list=[] }
     }
-    // | postfix_expression DOT IDENTIFIER { }
+    | x = postfix_expression; INC {
+        Ast.PostfixIncrement {postfix_expression=x}
+    }
+    | x = postfix_expression; DEC {
+        Ast.PostfixDecrement {postfix_expression=x}
+    }
 
 argument_expression_list:
     | assignment_expression { [$1] }
