@@ -232,7 +232,8 @@ and iteration_statement =
   | While of {expression: expression; body: statement}
   | DoWhile of {body: statement; expression: expression}
   | For of
-      { init: expression option
+      { init_decl: declaration option
+      ; init_expr: expression option
       ; condition: expression option
       ; iteration: expression option
       ; body: statement }

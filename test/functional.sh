@@ -58,6 +58,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "1 2 4 6 7 8 9 10 Done." ]
 }
 
+@test "basic_for" {
+    output="$(cat test/basic_for.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "1 2 3 4 5 6 7 8 9 10 Done." ]
+}
+
 @test "basic_arith" {
     output="$(cat test/basic_arith.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output

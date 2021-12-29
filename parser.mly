@@ -478,9 +478,11 @@ iteration_statement:
       Ast.DoWhile {body=x; expression=y}
     }
     | FOR; "("; x = expression?; ";"; y = expression?; ";"; z = expression?; ")"; w = statement {
-      Ast.For {init=x; condition=y; iteration=z; body=w}
+      Ast.For {init_decl=None; init_expr=x; condition=y; iteration=z; body=w}
     }
-    (*| FOR "(" declaration option(expression) ";" option(expression) ")" statement { }*)
+    | FOR; "("; d = declaration; x = expression?; ";"; y = expression?; ")"; z = statement {
+      Ast.For {init_decl=Some d; init_expr=None; condition=x; iteration=y; body=z}
+    }
 
 jump_statement:
     | GOTO; id = IDENTIFIER { Ast.Goto id }

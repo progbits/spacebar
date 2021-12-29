@@ -706,6 +706,44 @@ and emit_statement state (statement : statement) =
           in
           (* End label *)
           emit_opcode state (FlowControl (Mark end_label))
+      | For x' ->
+          let state, condition_label = next_fn_label state in
+          let state, end_label = next_fn_label state in
+          let state =
+            { state with
+              iter_stmt_end_label= Some end_label
+            ; iter_stmt_start_label= Some condition_label }
+          in
+          (* Emit loop variable declaration. *)
+          let state =
+            match x'.init_decl with
+            | Some x'' -> emit_declaration state x''
+            | None -> state
+          in
+          (* Mark start of loop, before condition. *)
+          let state = emit_opcode state (FlowControl (Mark condition_label)) in
+          (* Evaluate condition. *)
+          let state =
+            match x'.condition with
+            | Some x'' -> emit_expression state x''
+            | None -> state
+          in
+          (* Jump if condition is not valid. *)
+          let state = emit_opcode state (FlowControl (JumpZero end_label)) in
+          (* Evaluate iteration statement. *)
+          let state =
+            match x'.iteration with
+            | Some x'' -> emit_expression state x''
+            | None -> state
+          in
+          (* Emit body. *)
+          let state = emit_statement state x'.body in
+          (* Unconditional jump back to condition. *)
+          let state =
+            emit_opcode state (FlowControl (UnconditionalJump condition_label))
+          in
+          (* End label *)
+          emit_opcode state (FlowControl (Mark end_label))
       | _ -> state )
   | JumpStatement x -> (
       Printf.eprintf "Emitting JumpStatement\n" ;
