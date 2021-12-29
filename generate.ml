@@ -730,14 +730,14 @@ and emit_statement state (statement : statement) =
           in
           (* Jump if condition is not valid. *)
           let state = emit_opcode state (FlowControl (JumpZero end_label)) in
+          (* Emit body. *)
+          let state = emit_statement state x'.body in
           (* Evaluate iteration statement. *)
           let state =
             match x'.iteration with
             | Some x'' -> emit_expression state x''
             | None -> state
           in
-          (* Emit body. *)
-          let state = emit_statement state x'.body in
           (* Unconditional jump back to condition. *)
           let state =
             emit_opcode state (FlowControl (UnconditionalJump condition_label))
