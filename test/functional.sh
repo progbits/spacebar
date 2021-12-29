@@ -100,6 +100,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "42Done." ]
 }
 
+@test "fizz_buzz" {
+    output="$(cat test/fizz_buzz.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "0 0 3 5 6 9 10 12 15 15 Done." ]
+}
+
 @test "fibonacci" {
     output="$(cat test/fib.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output
