@@ -82,6 +82,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "0 1 2 3 4 5 6 7 8 9 Done." ]
 }
 
+@test "basic_postfix_subtraction" {
+    output="$(cat test/basic_postfix_subtraction.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "10 9 8 7 6 5 4 3 2 1 Done." ]
+}
+
 @test "basic_pointer" {
     output="$(cat test/basic_pointer.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output
