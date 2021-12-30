@@ -615,9 +615,18 @@ and emit_logical_and_expression state x =
 and emit_logical_or_expression state x =
   match x with
   | LogicalOrLogicalAndExpression x' -> emit_logical_and_expression state x'
-  | _ ->
-      Printf.eprintf "emit_logical_or_expression: Not implemented\n" ;
-      state
+  | LogicalOrExpression x' ->
+      let state, rhs_label = next_fn_label state in
+      let state, end_label = next_fn_label state in
+      let state = emit_logical_or_expression state x'.logical_or_expression in
+      let state = emit_opcode state (FlowControl (JumpZero rhs_label)) in
+      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state =
+        emit_opcode state (FlowControl (UnconditionalJump end_label))
+      in
+      let state = emit_opcode state (FlowControl (Mark rhs_label)) in
+      let state = emit_logical_and_expression state x'.logical_and_expression in
+      emit_opcode state (FlowControl (Mark end_label))
 
 and emit_conditional_expression state x =
   match x with

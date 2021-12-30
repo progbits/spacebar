@@ -308,7 +308,9 @@ conditional_expression:
 (* 6.5.14 *)
 logical_or_expression:
     | logical_and_expression { Ast.LogicalOrLogicalAndExpression $1 }
-    // | logical_or_expression "||" logical_and_expression { }
+    | x = logical_or_expression; "||"; y = logical_and_expression {
+      Ast.LogicalOrExpression { logical_or_expression=x; logical_and_expression=y }
+    }
 
 (* 6.5.13 *)
 logical_and_expression:

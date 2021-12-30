@@ -40,6 +40,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "42 84 42   Done." ]
 }
 
+@test "basic_logical_or" {
+    output="$(cat test/basic_logical_or.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "2 3 4 5 Done." ]
+}
+
 @test "basic_while" {
     output="$(cat test/basic_while.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output
