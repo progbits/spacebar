@@ -313,7 +313,9 @@ logical_or_expression:
 (* 6.5.13 *)
 logical_and_expression:
     | inclusive_or_experssion { Ast.InclusiveOrExpression $1 }
-    // | logical_and_expression "&&" inclusive_or_experssion { }
+    | x = logical_and_expression; "&&"; y = inclusive_or_experssion {
+      Ast.LogicalAndExpression {logical_and_expression=x; inclusive_or_expression=y }
+    }
 
 (* 6.5.12 *)
 inclusive_or_experssion:
