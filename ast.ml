@@ -50,9 +50,8 @@ and parameter_declaration =
   {declaration_specifiers: declaration_specifiers; declarator: declarator}
 
 (* 6.5.1 *)
-
-type primary_expression =
-  | Identifier of string
+and primary_expression =
+  | IdentifierExpr of string
   | Constant of int
   | StringLiteral of string
   | Expression of expression

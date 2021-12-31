@@ -171,7 +171,7 @@ declaration_list:
     | declaration_list declaration { $2 :: $1 }
 
 primary_expression:
-    | IDENTIFIER { Ast.Identifier $1 }
+    | IDENTIFIER { Ast.IdentifierExpr $1 }
     | CONSTANT { Ast.Constant $1 }
     | STRING_LITERAL { Ast.StringLiteral $1 }
     | "("; x = expression; ")" { Ast.Expression x }

@@ -40,8 +40,8 @@ and direct_declarator =
 and parameter_declaration =
   {declaration_specifiers: declaration_specifiers; declarator: declarator}
 
-type primary_expression =
-  | Identifier of string
+and primary_expression =
+  | IdentifierExpr of string
   | Constant of int
   | StringLiteral of string
   | Expression of expression

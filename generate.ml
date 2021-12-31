@@ -299,7 +299,7 @@ let emit_putc state =
 (* Emit opcodes for a primary expression. *)
 let rec emit_primary_expression state expr lvalue =
   match expr with
-  | Identifier x' ->
+  | IdentifierExpr x' ->
       let offset = find_offset state x' in
       Printf.eprintf
         "emit_primary_expression: Identifier. Found %s at offset %d\n" x' offset ;
@@ -334,7 +334,7 @@ and emit_postfix_expression state x lvalue =
         match x'.postfix_expression with
         | PrimaryExpression x'' -> (
           match x'' with
-          | Identifier x''' -> x'''
+          | IdentifierExpr x''' -> x'''
           | _ ->
               Printf.eprintf "No function name!\n" ;
               "" )
@@ -388,7 +388,7 @@ and unary_expr_offset state expr =
     match x with
     | PrimaryExpression x' -> (
       match x' with
-      | Identifier x'' -> find_offset state x''
+      | IdentifierExpr x'' -> find_offset state x''
       | _ -> raise Spacebar_Exception )
     | _ -> raise Spacebar_Exception )
   | _ -> raise Spacebar_Exception
