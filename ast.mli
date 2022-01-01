@@ -198,12 +198,13 @@ and selection_statement =
   | IfElse of {expression: expression; body: statement; else_body: statement}
   | Switch of {expression: expression; body: statement}
 
+and for_init_clause = ForInitExpr of expression | ForInitDecl of declaration
+
 and iteration_statement =
   | While of {expression: expression; body: statement}
   | DoWhile of {body: statement; expression: expression}
   | For of
-      { init_decl: declaration option
-      ; init_expr: expression option
+      { init_clause: for_init_clause option
       ; condition: expression option
       ; iteration: expression option
       ; body: statement }

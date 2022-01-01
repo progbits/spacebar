@@ -827,9 +827,13 @@ and emit_statement state (statement : statement) =
             ; iter_stmt_start_label= Some condition_label }
           in
           (* Emit loop variable declaration. *)
+          Printf.eprintf "\n\n\nmaybe Emit loop variable declaration\n\n\n" ;
           let state =
-            match x'.init_decl with
-            | Some x'' -> emit_declaration state x''
+            match x'.init_clause with
+            | Some x'' -> (
+              match x'' with
+              | ForInitExpr x''' -> emit_expression state x'''
+              | ForInitDecl x''' -> emit_declaration state x''' )
             | None -> state
           in
           (* Mark start of loop, before condition. *)

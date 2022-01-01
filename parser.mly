@@ -486,12 +486,14 @@ iteration_statement:
     | DO; x = statement; WHILE; "("; y = expression; ")"; ";" {
       Ast.DoWhile {body=x; expression=y}
     }
-    | FOR; "("; x = expression?; ";"; y = expression?; ";"; z = expression?; ")"; w = statement {
-      Ast.For {init_decl=None; init_expr=x; condition=y; iteration=z; body=w}
+    | FOR; "("; x = for_init_clause; y = expression?; ";"; z = expression?; ")"; w = statement {
+        Ast.For {init_clause=x; condition=y; iteration=z; body=w}
     }
-    | FOR; "("; d = declaration; x = expression?; ";"; y = expression?; ")"; z = statement {
-      Ast.For {init_decl=Some d; init_expr=None; condition=x; iteration=y; body=z}
-    }
+
+for_init_clause:
+    | ";" { None }
+    | expression ";" { Some (Ast.ForInitExpr $1) }
+    | declaration { Some (Ast.ForInitDecl $1) }
 
 jump_statement:
     | GOTO; id = IDENTIFIER { Ast.Goto id }
