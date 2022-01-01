@@ -42,6 +42,9 @@ type declarator = {pointer: pointer option; direct_declarator: direct_declarator
 and direct_declarator =
   | Identifier of string
   | Declarator of declarator
+  | ArrayDeclarator of
+      { direct_declarator: direct_declarator
+      ; assignment_expression: assignment_expression }
   | FunctionDeclarator of
       { direct_declarator: direct_declarator
       ; parameter_list: parameter_declaration list }

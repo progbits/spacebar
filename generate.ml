@@ -117,12 +117,63 @@ let find_offset state var_name =
 (* Emit a new opcode and return the resulting state. *)
 let emit_opcode state opcode = {state with ops= opcode :: state.ops}
 
+(* Try and reduce an assignment expression to a constant value. Used for e.g.
+   compile time determination of the size of arrays. TODO: This is terrible,
+   clean this up! *)
+let constant_from_assignment_expr assignment_expr =
+  match assignment_expr with
+  | AssignmentConditionalExpression x -> (
+    match x with
+    | ContitionalLogicalOrExpression x -> (
+      match x with
+      | LogicalOrLogicalAndExpression x -> (
+        match x with
+        | InclusiveOrExpression x -> (
+          match x with
+          | ExclusiveOr x -> (
+            match x with
+            | AndExpression x -> (
+              match x with
+              | EqualityExpression x -> (
+                match x with
+                | RelationalExpression x -> (
+                  match x with
+                  | ShiftExpression x -> (
+                    match x with
+                    | AdditiveExpression x -> (
+                      match x with
+                      | MultiplicativeExpression x -> (
+                        match x with
+                        | CastExpression x -> (
+                          match x with
+                          | PostfixExpression x -> (
+                            match x with
+                            | PrimaryExpression x -> (
+                              match x with
+                              | Constant x -> x
+                              | _ -> raise Spacebar_Exception )
+                            | _ -> raise Spacebar_Exception )
+                          | _ -> raise Spacebar_Exception )
+                        | _ -> raise Spacebar_Exception )
+                      | _ -> raise Spacebar_Exception )
+                    | _ -> raise Spacebar_Exception )
+                  | _ -> raise Spacebar_Exception )
+                | _ -> raise Spacebar_Exception )
+              | _ -> raise Spacebar_Exception )
+            | _ -> raise Spacebar_Exception )
+          | _ -> raise Spacebar_Exception )
+        | _ -> raise Spacebar_Exception )
+      | _ -> raise Spacebar_Exception )
+    | _ -> raise Spacebar_Exception )
+  | _ -> raise Spacebar_Exception
+
 (* Return the identifier from a declarator. *)
 let rec identifier (declarator : declarator) =
   let rec match_direct_declarator (direct_declarator : direct_declarator) =
     match direct_declarator with
     | Identifier x -> x
     | Declarator x -> identifier x
+    | ArrayDeclarator x -> match_direct_declarator x.direct_declarator
     | FunctionDeclarator x -> match_direct_declarator x.direct_declarator
   in
   match_direct_declarator declarator.direct_declarator
@@ -161,6 +212,16 @@ let load_rbp_rel state offset =
     [ StackManipulation (Push 1)
     ; HeapAccess Retrieve
     ; StackManipulation (Push offset)
+    ; Arithmetic Addtion
+    ; HeapAccess Retrieve ]
+  in
+  List.fold_left emit_opcode state ops
+
+(* Load a value from memory using the offset at the top of the stack. *)
+let load_rbp_rel_stack state =
+  let ops =
+    [ StackManipulation (Push 1)
+    ; HeapAccess Retrieve
     ; Arithmetic Addtion
     ; HeapAccess Retrieve ]
   in
@@ -296,6 +357,13 @@ let emit_putc state =
   let state = emit_opcode state (FlowControl EndSubroutine) in
   state
 
+(* Return an identifier from a postfix expression. *)
+let id_from_postfix postfix_expr =
+  match postfix_expr with
+  | PrimaryExpression x'' -> (
+    match x'' with IdentifierExpr x''' -> x''' | _ -> raise Spacebar_Exception )
+  | _ -> raise Spacebar_Exception
+
 (* Emit opcodes for a primary expression. *)
 let rec emit_primary_expression state expr lvalue =
   match expr with
@@ -317,6 +385,17 @@ let rec emit_primary_expression state expr lvalue =
 and emit_postfix_expression state x lvalue =
   match x with
   | PrimaryExpression x' -> emit_primary_expression state x' lvalue
+  | ArrayAccess x' ->
+      (* Emit the index expression. *)
+      let state = emit_expression state x'.expression in
+      (* Get the offset of the array start. *)
+      let offset =
+        unary_expr_offset state (PostfixExpression x'.postfix_expression)
+      in
+      (* Add the index to the offset. *)
+      let state = emit_opcode state (StackManipulation (Push offset)) in
+      let state = emit_opcode state (Arithmetic Addtion) in
+      if lvalue then state else load_rbp_rel_stack state
   | FunctionCall x' ->
       Printf.eprintf "emit_postfix_expression: FunctionCall\n" ;
       (* Store the function arguments relative to the stack pointer. *)
@@ -330,18 +409,7 @@ and emit_postfix_expression state x lvalue =
             process_arguments state t
       in
       (* Assume our postfix expression is an identifier. *)
-      let function_name =
-        match x'.postfix_expression with
-        | PrimaryExpression x'' -> (
-          match x'' with
-          | IdentifierExpr x''' -> x'''
-          | _ ->
-              Printf.eprintf "No function name!\n" ;
-              "" )
-        | _ ->
-            Printf.eprintf "No function name!\n" ;
-            ""
-      in
+      let function_name = id_from_postfix x'.postfix_expression in
       (* Push the function arguments on the stack. *)
       let state =
         process_arguments state (List.rev x'.argument_expression_list)
@@ -846,10 +914,16 @@ and emit_fn_def state (fn_def : function_definition) =
   let state = List.fold_left emit_block_item state fn_def.compound_statement in
   emit_opcode state (FlowControl EndSubroutine)
 
+(* Return true if a declaration is an array declaration. *)
+and is_array_decl (decl : init_declarator) =
+  match decl.declarator.direct_declarator with
+  | ArrayDeclarator _ -> true
+  | _ -> false
+
 (* Emit a declaration, returning the new state of the generator. *)
 and emit_declaration state declaration =
-  (* Emit a declarator, returning the new state of the generator. *)
-  let emit_init_declarator state (init_declarator : init_declarator) =
+  (* Emit a non-array declarator, returning the new state of the generator. *)
+  let emit_non_array_init_declarator state (init_declarator : init_declarator) =
     (* Emit the (optional) initializer. *)
     let state, has_init =
       match init_declarator._initializer with
@@ -869,7 +943,44 @@ and emit_declaration state declaration =
       store_stack state )
     else state
   in
-  List.fold_left emit_init_declarator state declaration.init_declarator_list
+  let emit_array_init_decl state (init_decl : init_declarator) =
+    (* Look up or add the name to the symbol table. *)
+    let name = identifier init_decl.declarator in
+    let state, _ = add_local_var state "empty" name in
+    (* At the moment we assume array sizes are just constant primary
+       expressions. *)
+    let size =
+      match init_decl.declarator.direct_declarator with
+      | ArrayDeclarator x ->
+          constant_from_assignment_expr x.assignment_expression
+      | _ -> raise Spacebar_Exception
+    in
+    (* Most interpreters use a hash table like structure for tracking stack
+       memory, so the only way to 'allocate' an array is to zero out the amount
+       of stack we want. *)
+    let rec stack_allocate state size =
+      match size with
+      | 0 -> state
+      | n ->
+          let state = emit_opcode state (StackManipulation (Push 0)) in
+          let state = store_stack state in
+          stack_allocate state (n - 1)
+    in
+    stack_allocate state size
+  in
+  (* Strip out any array declarations, so we can handle these seperatly. *)
+  let non_array_decl =
+    List.filter
+      (fun x -> not (is_array_decl x))
+      declaration.init_declarator_list
+  in
+  let array_decl = List.filter is_array_decl declaration.init_declarator_list in
+  (* Handle normal declarations. *)
+  let state =
+    List.fold_left emit_non_array_init_declarator state non_array_decl
+  in
+  (* Handle array declarations. *)
+  List.fold_left emit_array_init_decl state array_decl
 
 let emit_external_declaration state ast =
   match ast with

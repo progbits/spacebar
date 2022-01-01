@@ -121,6 +121,11 @@ declarator:
 direct_declarator:
     | IDENTIFIER { Ast.Identifier $1 }
     | "("; x = declarator; ")" { Ast.Declarator x }
+    | x = direct_declarator; "["; y = assignment_expression; "]"; {
+        Ast.ArrayDeclarator {
+            direct_declarator=x; assignment_expression=y
+        }
+    }
     | x = direct_declarator; "("; y = parameter_type_list; ")" { 
         Ast.FunctionDeclarator { direct_declarator=x; parameter_list=y }
     }
