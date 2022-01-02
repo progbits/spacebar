@@ -5,4 +5,5 @@
  (flags --fixed-exception --dump --trace))
 
 (executable
- (name spacebar))
+ (name spacebar)
+ (libraries lib))

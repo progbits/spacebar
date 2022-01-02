@@ -1,5 +1,6 @@
 open Ast
 open Whitespace
+open Lib.Symbol
 
 exception Spacebar_Exception
 
@@ -21,98 +22,41 @@ type symbol =
    most efficient structure, but its easy. *)
 type state =
   { ops: imp list
-  ; next_fn_label: int
-  ; symbol_table: symbol list
+  ; symbol_table: symbol_table
   ; iter_stmt_start_label: int option
   ; iter_stmt_end_label: int option }
 
-(* Return the next avaliable label. *)
-let next_fn_label state =
-  let label = state.next_fn_label + 1 in
-  ({state with next_fn_label= label}, label)
+(* Wrap Symbol.add_label *)
+let add_label_s state =
+  let label, symbol_table = add_label state.symbol_table in
+  ({state with symbol_table}, label)
 
-(* Look up a name in the global section of the symbol table (scope zero) and
-   return the associated label. *)
-let find_fn_label state fn_name =
-  let rec do_find symbol_table fn_name =
-    match symbol_table with
-    | [] -> raise Function_Not_Found
-    | h :: t -> (
-      match h with
-      | Function x -> if x.name = fn_name then x.label else do_find t fn_name
-      | _ -> do_find t fn_name )
+(* Wrap Symbol.add_func *)
+let add_func_s state name =
+  let label, symbol_table = add_func state.symbol_table name in
+  ({state with symbol_table}, label)
+
+(* Wrap Symbol.find_func *)
+let find_func_s state name =
+  let label = find_func state.symbol_table name in
+  match label with Some l -> l | None -> raise Spacebar_Exception
+
+(* Wrap Symbol.add_func_arg*)
+let add_func_arg_s state func_name arg_name size =
+  let offset, symbol_table =
+    add_func_arg state.symbol_table func_name arg_name size
   in
-  do_find state.symbol_table fn_name
+  ({state with symbol_table}, offset)
 
-(* Add a function to the global section (scope zero) of the symbol table and
-   return the function label. *)
-let add_fn state fn_name =
-  (* Bit of a hack...*)
-  if fn_name = "main" then
-    let entry = Function {scope= 0; name= fn_name; label= 0} in
-    ({state with symbol_table= entry :: state.symbol_table}, 0)
-  else
-    (* Get the next avaliable function label. Functions are labelled
-       incrementally starting from '1' with label '0' reserved for 'main'.*)
-    let state, label =
-      let label = state.next_fn_label in
-      let next_fn_label = state.next_fn_label + 1 in
-      ({state with next_fn_label}, label)
-    in
-    let symbol_table =
-      Function {scope= 0; name= fn_name; label} :: state.symbol_table
-    in
-    ({state with symbol_table}, label)
-
-(* Add a function argument to the global section (scope zero) of the symbol
-   table. *)
-let add_fn_arg state fn_name arg_name =
-  (* Count the number of arguments the named function has. *)
-  let rec count_args symbol_table fn_name i =
-    match symbol_table with
-    | [] -> i
-    | h :: t -> (
-      match h with
-      | Argument x when x.fn_name = fn_name -> count_args t fn_name (i + 1)
-      | _ -> count_args t fn_name i )
+(* Wrap Symbol.add_local_var*)
+let add_local_var_s state func_name name size =
+  let offset, symbol_table =
+    add_local_var state.symbol_table func_name name size
   in
-  let offset = -2 - count_args state.symbol_table fn_name 0 in
-  Printf.eprintf "Adding argument %s at offset %d to function %s\n" arg_name
-    offset fn_name ;
-  let new_entry = Argument {scope= 0; fn_name; name= arg_name; offset} in
-  ({state with symbol_table= new_entry :: state.symbol_table}, offset)
+  ({state with symbol_table}, offset)
 
-(* Add a local variable to the symbol table and return its offset. *)
-let add_local_var state fn_name var_name =
-  (* Count the number of local variables this scope has. *)
-  let rec count symbol_table fn_name i =
-    match symbol_table with
-    | [] -> i
-    | h :: t -> (
-      match h with
-      | Variable x when x.scope = 0 -> count t fn_name (i + 1)
-      | _ -> count t fn_name i )
-  in
-  let offset = count state.symbol_table fn_name 0 in
-  let new_entry = Variable {scope= 0; name= var_name; offset} in
-  ({state with symbol_table= new_entry :: state.symbol_table}, offset)
-
-(* Find the offset of a symbol in the symbol table. Search starts at the current
-   scope and works towards the global scope. *)
-let find_offset state var_name =
-  Printf.eprintf "find_offset %s\n" var_name ;
-  let rec find symbol_table var_name =
-    match symbol_table with
-    | [] ->
-        Printf.eprintf " Failed to find var %s\n" var_name ;
-        raise Symbol_Not_Found
-    | h :: t -> (
-      match h with
-      | Argument x -> if var_name = x.name then x.offset else find t var_name
-      | Variable x -> if var_name = x.name then x.offset else find t var_name
-      | _ -> find t var_name )
-  in
-  find state.symbol_table var_name
+(* Wrap Symbol.find_offset*)
+let find_offset_s state name = find_offset state.symbol_table name
 
 (* Emit a new opcode and return the resulting state. *)
 let emit_opcode state opcode = {state with ops= opcode :: state.ops}
@@ -327,7 +271,7 @@ let push_abs_addr state offset =
 (* Emit the built-in function geti and return the function label. *)
 let emit_geti state =
   (* Add the function to the symbol table and emit the function label. *)
-  let state, label = add_fn state "geti" in
+  let state, label = add_func_s state "geti" in
   let state = emit_opcode state (FlowControl (Mark label)) in
   (* Load the output location and read the number. *)
   let state = load_rbp_rel state (-2) in
@@ -338,7 +282,7 @@ let emit_geti state =
 (* Emit the built-in function puti and return the function label. *)
 let emit_puti state =
   (* Add the function to the symbol table and emit the function label. *)
-  let state, label = add_fn state "puti" in
+  let state, label = add_func_s state "puti" in
   let state = emit_opcode state (FlowControl (Mark label)) in
   (* Load and output the argument. *)
   let state = load_rbp_rel state (-2) in
@@ -349,7 +293,7 @@ let emit_puti state =
 (* Emit the built-in function putc and return the function label. *)
 let emit_putc state =
   (* Add the function to the symbol table and emit the function label. *)
-  let state, label = add_fn state "putc" in
+  let state, label = add_func_s state "putc" in
   let state = emit_opcode state (FlowControl (Mark label)) in
   (* Load and output the argument. *)
   let state = load_rbp_rel state (-2) in
@@ -368,7 +312,7 @@ let id_from_postfix postfix_expr =
 let rec emit_primary_expression state expr lvalue =
   match expr with
   | IdentifierExpr x' ->
-      let offset = find_offset state x' in
+      let offset = find_offset_s state x' in
       Printf.eprintf
         "emit_primary_expression: Identifier. Found %s at offset %d\n" x' offset ;
       if lvalue then emit_opcode state (StackManipulation (Push offset))
@@ -419,7 +363,7 @@ and emit_postfix_expression state x lvalue =
       (* Set the frame pointer for the callee. *)
       let state = set_rsp state in
       (* Find the function label and call the function. *)
-      let label = find_fn_label state function_name in
+      let label = find_func_s state function_name in
       let state = emit_opcode state (FlowControl (Call label)) in
       (* Restore the frame and stack pointers.rbp and rsp *)
       let state = restore_rsp state in
@@ -456,7 +400,7 @@ and unary_expr_offset state expr =
     match x with
     | PrimaryExpression x' -> (
       match x' with
-      | IdentifierExpr x'' -> find_offset state x''
+      | IdentifierExpr x'' -> find_offset_s state x''
       | _ -> raise Spacebar_Exception )
     | _ -> raise Spacebar_Exception )
   | _ -> raise Spacebar_Exception
@@ -558,8 +502,8 @@ and emit_relational_expression state x =
   | ShiftExpression x' -> emit_shift_expression state x'
   | LessThanExpression x' ->
       (* True if (lhs - rhs) is negative. *)
-      let state, negative_label = next_fn_label state in
-      let state, end_label = next_fn_label state in
+      let state, negative_label = add_label_s state in
+      let state, end_label = add_label_s state in
       let state = emit_relational_expression state x'.relational_expression in
       (* LHS *)
       let state = emit_shift_expression state x'.shift_expression in
@@ -578,9 +522,9 @@ and emit_relational_expression state x =
       emit_opcode state (FlowControl (Mark end_label))
   | GreaterThanExpression x' ->
       (* True if (lhs - rhs) is NOT negative. *)
-      let state, negative_label = next_fn_label state in
-      let state, zero_label = next_fn_label state in
-      let state, end_label = next_fn_label state in
+      let state, negative_label = add_label_s state in
+      let state, zero_label = add_label_s state in
+      let state, end_label = add_label_s state in
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_shift_expression state x'.shift_expression in
       let state = emit_opcode state (Arithmetic Subtraction) in
@@ -611,8 +555,8 @@ and emit_equality_expression state x =
   match x with
   | RelationalExpression x' -> emit_relational_expression state x'
   | EqualToExpression x' ->
-      let state, zero_label = next_fn_label state in
-      let state, end_label = next_fn_label state in
+      let state, zero_label = add_label_s state in
+      let state, end_label = add_label_s state in
       let state = emit_equality_expression state x'.equality_expression in
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_opcode state (Arithmetic Subtraction) in
@@ -625,8 +569,8 @@ and emit_equality_expression state x =
       let state = emit_opcode state (StackManipulation (Push 1)) in
       emit_opcode state (FlowControl (Mark end_label))
   | NotEqualToExpression x' ->
-      let state, zero_label = next_fn_label state in
-      let state, end_label = next_fn_label state in
+      let state, zero_label = add_label_s state in
+      let state, end_label = add_label_s state in
       let state = emit_equality_expression state x'.equality_expression in
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_opcode state (Arithmetic Subtraction) in
@@ -664,8 +608,8 @@ and emit_logical_and_expression state x =
   match x with
   | InclusiveOrExpression x' -> emit_inclusive_or_expression state x'
   | LogicalAndExpression x' ->
-      let state, zero_label = next_fn_label state in
-      let state, end_label = next_fn_label state in
+      let state, zero_label = add_label_s state in
+      let state, end_label = add_label_s state in
       let state = emit_logical_and_expression state x'.logical_and_expression in
       let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
       let state =
@@ -684,8 +628,8 @@ and emit_logical_or_expression state x =
   match x with
   | LogicalOrLogicalAndExpression x' -> emit_logical_and_expression state x'
   | LogicalOrExpression x' ->
-      let state, rhs_label = next_fn_label state in
-      let state, end_label = next_fn_label state in
+      let state, rhs_label = add_label_s state in
+      let state, end_label = add_label_s state in
       let state = emit_logical_or_expression state x'.logical_or_expression in
       let state = emit_opcode state (FlowControl (JumpZero rhs_label)) in
       let state = emit_opcode state (StackManipulation (Push 1)) in
@@ -759,7 +703,7 @@ and emit_statement state (statement : statement) =
       match x with
       | If x' ->
           (* Label for conditional jump. *)
-          let state, skip_condition_label = next_fn_label state in
+          let state, skip_condition_label = add_label_s state in
           (* Evaluate expression and jump if false. *)
           let state = emit_expression state x'.expression in
           let state =
@@ -776,8 +720,8 @@ and emit_statement state (statement : statement) =
       match x with
       | While x' ->
           (* Labels for condition and end. *)
-          let state, condition_label = next_fn_label state in
-          let state, end_label = next_fn_label state in
+          let state, condition_label = add_label_s state in
+          let state, end_label = add_label_s state in
           let state =
             { state with
               iter_stmt_end_label= Some end_label
@@ -798,8 +742,8 @@ and emit_statement state (statement : statement) =
           emit_opcode state (FlowControl (Mark end_label))
       | DoWhile x' ->
           (* Labels for condition and end. *)
-          let state, body_label = next_fn_label state in
-          let state, end_label = next_fn_label state in
+          let state, body_label = add_label_s state in
+          let state, end_label = add_label_s state in
           let state =
             { state with
               iter_stmt_end_label= Some end_label
@@ -819,8 +763,8 @@ and emit_statement state (statement : statement) =
           (* End label *)
           emit_opcode state (FlowControl (Mark end_label))
       | For x' ->
-          let state, condition_label = next_fn_label state in
-          let state, end_label = next_fn_label state in
+          let state, condition_label = add_label_s state in
+          let state, end_label = add_label_s state in
           let state =
             { state with
               iter_stmt_end_label= Some end_label
@@ -888,7 +832,7 @@ and emit_statement state (statement : statement) =
 and emit_fn_def state (fn_def : function_definition) =
   (* Add the function to the symbol table. *)
   let fn_name = identifier fn_def.declarator in
-  let state, label = add_fn state fn_name in
+  let state, label = add_func_s state fn_name in
   Printf.eprintf "Found function %s with label %d\n" fn_name label ;
   (* Add the function arguments to the symbol table. *)
   let state =
@@ -905,7 +849,7 @@ and emit_fn_def state (fn_def : function_definition) =
           (fun acc x ->
             Printf.eprintf "Adding fn_arg %s for fn %s to symbol table\n" x
               fn_name ;
-            let state, _ = add_fn_arg acc fn_name x in
+            let state, _ = add_func_arg_s acc fn_name x 1 in
             state )
           state args
     | _ ->
@@ -938,7 +882,7 @@ and emit_declaration state declaration =
     in
     (* Look up or add the name to the symbol table. *)
     let name = identifier init_declarator.declarator in
-    let state, offset = add_local_var state "empty" name in
+    let state, offset = add_local_var_s state "empty" name 1 in
     Printf.eprintf "Name %s at offset %d\n" name offset ;
     (* Store the initial value if we had one. *)
     Printf.eprintf "delcaration has_init? %b\n" has_init ;
@@ -950,7 +894,6 @@ and emit_declaration state declaration =
   let emit_array_init_decl state (init_decl : init_declarator) =
     (* Look up or add the name to the symbol table. *)
     let name = identifier init_decl.declarator in
-    let state, _ = add_local_var state "empty" name in
     (* At the moment we assume array sizes are just constant primary
        expressions. *)
     let size =
@@ -959,6 +902,7 @@ and emit_declaration state declaration =
           constant_from_assignment_expr x.assignment_expression
       | _ -> raise Spacebar_Exception
     in
+    let state, _ = add_local_var_s state "empty" name size in
     (* Most interpreters use a hash table like structure for tracking stack
        memory, so the only way to 'allocate' an array is to zero out the amount
        of stack we want. *)
@@ -1019,13 +963,11 @@ let emit_build_ins state =
 let generate (x : external_declaration list) =
   let state =
     { ops= []
-    ; next_fn_label= 1
-    ; symbol_table= []
+    ; symbol_table= new_symbol_table
     ; iter_stmt_end_label= None
     ; iter_stmt_start_label= None }
   in
   let state = emit_prog_prolog state in
-  let state, _ = add_fn state "main" in
   let state = emit_build_ins state in
   let state = List.fold_left emit_external_declaration state x in
   List.rev state.ops
