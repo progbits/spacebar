@@ -124,6 +124,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "0 10 20 30 40 50 60 70 Done." ]
 }
 
+@test "basic_multiple_array" {
+    output="$(cat test/basic_multiple_array.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "1 12 23 34 45 56 67 78 Done." ]
+}
+
 @test "fizz_buzz" {
     output="$(cat test/fizz_buzz.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output
