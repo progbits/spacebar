@@ -1,15 +1,18 @@
 open OUnit2
 open Lib.Symbol
 
+(* Adding 'main' function to symbol table should always just return label 0. *)
+let test_add_main_function _ =
+  let symbol_table = new_symbol_table in
+  let label, _ = add_func symbol_table "main" in
+  assert_equal 0 label
+
 (* Symbol table should always contain an entry for the "main" function with
    label 0. *)
-let test_main_function _ =
+let test_find_main_function _ =
   let symbol_table = new_symbol_table in
   match find_func symbol_table "main" with
-  | Some f -> (
-    match f with
-    | Function f -> assert_equal 0 f.label
-    | _ -> assert_failure "Expected a function" )
+  | Some f -> assert_equal 0 f
   | None -> assert_failure "Function not found"
 
 (* Add a new function to the symbol table. *)
@@ -23,10 +26,7 @@ let test_find_function _ =
   let symbol_table = new_symbol_table in
   let _, symbol_table = add_func symbol_table "foo" in
   match find_func symbol_table "foo" with
-  | Some f -> (
-    match f with
-    | Function f -> assert_equal 1 f.label
-    | _ -> assert_failure "Expected a function" )
+  | Some f -> assert_equal 1 f
   | None -> assert_failure "Function not found"
 
 (* Add multiple functions to the symbol table and ensure their labels are
@@ -37,10 +37,7 @@ let test_add_multiple_functions _ =
   let _, symbol_table = add_func symbol_table "bar" in
   let _, symbol_table = add_func symbol_table "baz" in
   match find_func symbol_table "baz" with
-  | Some f -> (
-    match f with
-    | Function f -> assert_equal 3 f.label
-    | _ -> assert_failure "Expected a function" )
+  | Some f -> assert_equal 3 f
   | None -> assert_failure "Function not found"
 
 (* Add function arguments to the symbol table. *)
@@ -69,6 +66,7 @@ let suite =
        ; "test_add_multiple_functions" >:: test_add_multiple_functions
        ; "test_add_function_argument" >:: test_add_function_argument
        ; "test_add_local_variable" >:: test_add_local_variable
-       ; "test_main_function" >:: test_main_function ]
+       ; "test_add_main_function" >:: test_add_main_function
+       ; "test_find_main_function" >:: test_find_main_function ]
 
 let () = run_test_tt_main suite

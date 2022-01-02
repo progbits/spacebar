@@ -14,16 +14,24 @@ let new_symbol_table =
   let main_func = Function {name= "main"; label= 0} in
   {symbols= [main_func]; next_function_label= 1; scope= 0}
 
+(* Add a new label to the symbol table and return the label. *)
+let add_label symbol_table =
+  let label = symbol_table.next_function_label in
+  let next_function_label = symbol_table.next_function_label + 1 in
+  (label, {symbol_table with next_function_label})
+
 (* Add a new function to the symbol table, returning the function label and the
    new symbol table. *)
 let add_func symbol_table name =
-  let function_label = symbol_table.next_function_label in
-  let new_symbol_list =
-    Function {name; label= function_label} :: symbol_table.symbols
-  in
-  let next_function_label = symbol_table.next_function_label + 1 in
-  ( function_label
-  , {symbol_table with symbols= new_symbol_list; next_function_label} )
+  if name = "main" then (0, symbol_table)
+  else
+    let function_label = symbol_table.next_function_label in
+    let new_symbol_list =
+      Function {name; label= function_label} :: symbol_table.symbols
+    in
+    let next_function_label = symbol_table.next_function_label + 1 in
+    ( function_label
+    , {symbol_table with symbols= new_symbol_list; next_function_label} )
 
 (* Find a function in the symbol table. *)
 let find_func symbol_table name =
@@ -32,7 +40,9 @@ let find_func symbol_table name =
     | Function {name; _} when name = func_name -> true
     | _ -> false
   in
-  List.find_opt (do_find_func name) symbol_table.symbols
+  match List.find_opt (do_find_func name) symbol_table.symbols with
+  | Some f -> ( match f with Function f -> Some f.label | _ -> None )
+  | None -> None
 
 (* Add a function argument to the symbol table. *)
 let add_func_arg symbol_table func_name arg_name size =
@@ -83,4 +93,4 @@ let find_offset symbol_table name =
       | Variable x -> if name = x.name then x.offset else do_find_offset t name
       | _ -> do_find_offset t name )
   in
-  do_find_offset symbol_table name
+  do_find_offset symbol_table.symbols name
