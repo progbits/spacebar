@@ -313,17 +313,11 @@ let rec emit_primary_expression state expr lvalue =
   match expr with
   | IdentifierExpr x' ->
       let offset = find_offset_s state x' in
-      Printf.eprintf
-        "emit_primary_expression: Identifier. Found %s at offset %d\n" x' offset ;
       if lvalue then emit_opcode state (StackManipulation (Push offset))
       else load_rbp_rel state offset
-  | Constant x' ->
-      Printf.eprintf "Emit Constant %d\n" x' ;
-      emit_opcode state (StackManipulation (Push x'))
+  | Constant x' -> emit_opcode state (StackManipulation (Push x'))
   | Expression x' -> emit_expression state x'
-  | _ ->
-      Printf.eprintf "emit_primary_expression: Not implemented\n" ;
-      state
+  | _ -> state
 
 (* Emit a postfix expression. *)
 and emit_postfix_expression state x lvalue =
@@ -341,7 +335,6 @@ and emit_postfix_expression state x lvalue =
       let state = emit_opcode state (Arithmetic Addtion) in
       if lvalue then state else load_rbp_rel_stack state
   | FunctionCall x' ->
-      Printf.eprintf "emit_postfix_expression: FunctionCall\n" ;
       (* Store the function arguments relative to the stack pointer. *)
       let rec process_arguments state arguments =
         match arguments with
@@ -389,9 +382,7 @@ and emit_postfix_expression state x lvalue =
       let state = emit_opcode state (Arithmetic Subtraction) in
       let state = emit_opcode state (StackManipulation (Push offset)) in
       store_stack_offset state
-  | _ ->
-      Printf.eprintf "emit_postfix_expression: Not implemented\n" ;
-      state
+  | _ -> state
 
 (* Lookup the offset of a unary expression in the symbol table. *)
 and unary_expr_offset state expr =
@@ -429,11 +420,9 @@ and emit_unary_expression state x lvalue =
     | AddressOf _ ->
         (* Look up the offset of the lvalue expression from rbp. *)
         let offset = unary_expr_offset state x'.unary_expression in
-        Printf.eprintf "AddressOf: Pushed value %d from rbp to stack\n" offset ;
         (* Emit the absolute address of the expression. *)
         push_abs_addr state offset
     | PointerDereference _ ->
-        Printf.eprintf "!!! pointer-dereference: %b\n" lvalue ;
         (* Evaluate the expression so the address is on top of the stack. *)
         let state = emit_unary_expression state x'.unary_expression lvalue in
         (* Load the value at the absolute address. *)
@@ -445,12 +434,8 @@ and emit_unary_expression state x lvalue =
         let state = emit_opcode state (StackManipulation (Push 0)) in
         let state = emit_unary_expression state x'.unary_expression lvalue in
         emit_opcode state (Arithmetic Subtraction)
-    | UnaryBitwiseNot _ ->
-        Printf.eprintf "UnaryBitwiseNot Not implemented\n" ;
-        state
-    | UnaryNot _ ->
-        Printf.eprintf "UnaryNot Not implemented\n" ;
-        state )
+    | UnaryBitwiseNot _ -> state
+    | UnaryNot _ -> state )
 
 and emit_multiplicative_expression state x =
   match x with
@@ -493,9 +478,7 @@ and emit_additive_expression state x =
 and emit_shift_expression state x =
   match x with
   | AdditiveExpression x' -> emit_additive_expression state x'
-  | _ ->
-      Printf.eprintf "emit_shift_expression: Not implemented\n" ;
-      state
+  | _ -> state
 
 and emit_relational_expression state x =
   match x with
@@ -586,23 +569,15 @@ and emit_equality_expression state x =
 and emit_and_expression state x =
   match x with
   | EqualityExpression x' -> emit_equality_expression state x'
-  | _ ->
-      Printf.eprintf "emit_and_expression: Not implemented\n" ;
-      state
+  | _ -> state
 
 and emit_exclusive_or_expression state x =
-  match x with
-  | AndExpression x' -> emit_and_expression state x'
-  | _ ->
-      Printf.eprintf "emit_exclusive_or_expression: Not implemented\n" ;
-      state
+  match x with AndExpression x' -> emit_and_expression state x' | _ -> state
 
 and emit_inclusive_or_expression state x =
   match x with
   | ExclusiveOr x' -> emit_exclusive_or_expression state x'
-  | _ ->
-      Printf.eprintf "emit_inclusive_or_expression: Not implemented\n" ;
-      state
+  | _ -> state
 
 and emit_logical_and_expression state x =
   match x with
@@ -643,17 +618,12 @@ and emit_logical_or_expression state x =
 and emit_conditional_expression state x =
   match x with
   | ContitionalLogicalOrExpression x' -> emit_logical_or_expression state x'
-  | _ ->
-      Printf.eprintf "emit_conditional_expression: Not implemented\n" ;
-      state
+  | _ -> state
 
 and emit_assignment_expression state x =
   match x with
-  | AssignmentConditionalExpression x' ->
-      Printf.eprintf "AssignmentConditionalExpression\n" ;
-      emit_conditional_expression state x'
+  | AssignmentConditionalExpression x' -> emit_conditional_expression state x'
   | AssignmentOperation x ->
-      Printf.eprintf "Emit assignment operation!!!!!!!\n" ;
       let state =
         match x.assignment_operator with
         | Assign _ ->
@@ -674,166 +644,148 @@ and emit_assignment_expression state x =
 
 and emit_expression state (expression : expression) =
   match expression with
-  | AssignmentExpression x ->
-      Printf.eprintf "assignment expression\n" ;
-      emit_assignment_expression state x
+  | AssignmentExpression x -> emit_assignment_expression state x
 
 let rec emit_block_item state (block_item : block_item) =
   match block_item with
-  | Declaration x ->
-      Printf.eprintf "block_item: emit_declaration\n" ;
-      emit_declaration state x
-  | Statement x ->
-      Printf.eprintf "block_item: emit_statement\n" ;
-      emit_statement state x
+  | Declaration x -> emit_declaration state x
+  | Statement x -> emit_statement state x
 
 and emit_statement state (statement : statement) =
   match statement with
-  | LabeledStatement _ ->
-      Printf.eprintf "LabeledStatement\n" ;
-      state
-  | CompoundStatement x ->
-      Printf.eprintf "CompoundStatement\n" ;
-      List.fold_left emit_block_item state x
+  | LabeledStatement _ -> state
+  | CompoundStatement x -> List.fold_left emit_block_item state x
   | ExpressionStatement x' -> (
-      Printf.eprintf "ExpressionStatement\n" ;
-      match x' with Some x'' -> emit_expression state x'' | None -> state )
+    match x' with Some x'' -> emit_expression state x'' | None -> state )
   | SelectionStatement x -> (
-      Printf.eprintf "SelectionStatement\n" ;
-      match x with
-      | If x' ->
-          (* Label for conditional jump. *)
-          let state, skip_condition_label = add_label_s state in
-          (* Evaluate expression and jump if false. *)
-          let state = emit_expression state x'.expression in
-          let state =
-            emit_opcode state (FlowControl (JumpZero skip_condition_label))
-          in
-          (* Emit body of condition. *)
-          let state = emit_statement state x'.body in
-          (* Mark label for skipping conditional body. *)
-          emit_opcode state (FlowControl (Mark skip_condition_label))
-      | IfElse _ -> state
-      | Switch _ -> state )
+    match x with
+    | If x' ->
+        (* Label for conditional jump. *)
+        let state, skip_condition_label = add_label_s state in
+        (* Evaluate expression and jump if false. *)
+        let state = emit_expression state x'.expression in
+        let state =
+          emit_opcode state (FlowControl (JumpZero skip_condition_label))
+        in
+        (* Emit body of condition. *)
+        let state = emit_statement state x'.body in
+        (* Mark label for skipping conditional body. *)
+        emit_opcode state (FlowControl (Mark skip_condition_label))
+    | IfElse _ -> state
+    | Switch _ -> state )
   | IterationStatement x -> (
-      Printf.eprintf "IterationStatement\n" ;
-      match x with
-      | While x' ->
-          (* Labels for condition and end. *)
-          let state, condition_label = add_label_s state in
-          let state, end_label = add_label_s state in
-          let state =
-            { state with
-              iter_stmt_end_label= Some end_label
-            ; iter_stmt_start_label= Some condition_label }
-          in
-          (* Mark start of loop, before expression. *)
-          let state = emit_opcode state (FlowControl (Mark condition_label)) in
-          (* Evaluate expression. *)
-          let state = emit_expression state x'.expression in
-          let state = emit_opcode state (FlowControl (JumpZero end_label)) in
-          (* Emit body. *)
-          let state = emit_statement state x'.body in
-          (* Unconditional jump. *)
-          let state =
-            emit_opcode state (FlowControl (UnconditionalJump condition_label))
-          in
-          (* End label *)
-          emit_opcode state (FlowControl (Mark end_label))
-      | DoWhile x' ->
-          (* Labels for condition and end. *)
-          let state, body_label = add_label_s state in
-          let state, end_label = add_label_s state in
-          let state =
-            { state with
-              iter_stmt_end_label= Some end_label
-            ; iter_stmt_start_label= Some body_label }
-          in
-          (* Mark start of loop, before expression. *)
-          let state = emit_opcode state (FlowControl (Mark body_label)) in
-          (* Emit body. *)
-          let state = emit_statement state x'.body in
-          (* Evaluate expression. *)
-          let state = emit_expression state x'.expression in
-          let state = emit_opcode state (FlowControl (JumpZero end_label)) in
-          (* Unconditional jump. *)
-          let state =
-            emit_opcode state (FlowControl (UnconditionalJump body_label))
-          in
-          (* End label *)
-          emit_opcode state (FlowControl (Mark end_label))
-      | For x' ->
-          let state, condition_label = add_label_s state in
-          let state, end_label = add_label_s state in
-          let state =
-            { state with
-              iter_stmt_end_label= Some end_label
-            ; iter_stmt_start_label= Some condition_label }
-          in
-          (* Emit loop variable declaration. *)
-          Printf.eprintf "\n\n\nmaybe Emit loop variable declaration\n\n\n" ;
-          let state =
-            match x'.init_clause with
-            | Some x'' -> (
-              match x'' with
-              | ForInitExpr x''' -> emit_expression state x'''
-              | ForInitDecl x''' -> emit_declaration state x''' )
-            | None -> state
-          in
-          (* Mark start of loop, before condition. *)
-          let state = emit_opcode state (FlowControl (Mark condition_label)) in
-          (* Evaluate condition. *)
-          let state =
-            match x'.condition with
-            | Some x'' -> emit_expression state x''
-            | None -> state
-          in
-          (* Jump if condition is not valid. *)
-          let state = emit_opcode state (FlowControl (JumpZero end_label)) in
-          (* Emit body. *)
-          let state = emit_statement state x'.body in
-          (* Evaluate iteration statement. *)
-          let state =
-            match x'.iteration with
-            | Some x'' -> emit_expression state x''
-            | None -> state
-          in
-          (* Unconditional jump back to condition. *)
-          let state =
-            emit_opcode state (FlowControl (UnconditionalJump condition_label))
-          in
-          (* End label *)
-          emit_opcode state (FlowControl (Mark end_label)) )
+    match x with
+    | While x' ->
+        (* Labels for condition and end. *)
+        let state, condition_label = add_label_s state in
+        let state, end_label = add_label_s state in
+        let state =
+          { state with
+            iter_stmt_end_label= Some end_label
+          ; iter_stmt_start_label= Some condition_label }
+        in
+        (* Mark start of loop, before expression. *)
+        let state = emit_opcode state (FlowControl (Mark condition_label)) in
+        (* Evaluate expression. *)
+        let state = emit_expression state x'.expression in
+        let state = emit_opcode state (FlowControl (JumpZero end_label)) in
+        (* Emit body. *)
+        let state = emit_statement state x'.body in
+        (* Unconditional jump. *)
+        let state =
+          emit_opcode state (FlowControl (UnconditionalJump condition_label))
+        in
+        (* End label *)
+        emit_opcode state (FlowControl (Mark end_label))
+    | DoWhile x' ->
+        (* Labels for condition and end. *)
+        let state, body_label = add_label_s state in
+        let state, end_label = add_label_s state in
+        let state =
+          { state with
+            iter_stmt_end_label= Some end_label
+          ; iter_stmt_start_label= Some body_label }
+        in
+        (* Mark start of loop, before expression. *)
+        let state = emit_opcode state (FlowControl (Mark body_label)) in
+        (* Emit body. *)
+        let state = emit_statement state x'.body in
+        (* Evaluate expression. *)
+        let state = emit_expression state x'.expression in
+        let state = emit_opcode state (FlowControl (JumpZero end_label)) in
+        (* Unconditional jump. *)
+        let state =
+          emit_opcode state (FlowControl (UnconditionalJump body_label))
+        in
+        (* End label *)
+        emit_opcode state (FlowControl (Mark end_label))
+    | For x' ->
+        let state, condition_label = add_label_s state in
+        let state, end_label = add_label_s state in
+        let state =
+          { state with
+            iter_stmt_end_label= Some end_label
+          ; iter_stmt_start_label= Some condition_label }
+        in
+        (* Emit loop variable declaration. *)
+        let state =
+          match x'.init_clause with
+          | Some x'' -> (
+            match x'' with
+            | ForInitExpr x''' -> emit_expression state x'''
+            | ForInitDecl x''' -> emit_declaration state x''' )
+          | None -> state
+        in
+        (* Mark start of loop, before condition. *)
+        let state = emit_opcode state (FlowControl (Mark condition_label)) in
+        (* Evaluate condition. *)
+        let state =
+          match x'.condition with
+          | Some x'' -> emit_expression state x''
+          | None -> state
+        in
+        (* Jump if condition is not valid. *)
+        let state = emit_opcode state (FlowControl (JumpZero end_label)) in
+        (* Emit body. *)
+        let state = emit_statement state x'.body in
+        (* Evaluate iteration statement. *)
+        let state =
+          match x'.iteration with
+          | Some x'' -> emit_expression state x''
+          | None -> state
+        in
+        (* Unconditional jump back to condition. *)
+        let state =
+          emit_opcode state (FlowControl (UnconditionalJump condition_label))
+        in
+        (* End label *)
+        emit_opcode state (FlowControl (Mark end_label)) )
   | JumpStatement x -> (
-      Printf.eprintf "Emitting JumpStatement\n" ;
-      match x with
-      | Goto _ ->
-          Printf.eprintf "Unsupported Goto Statement\n" ;
-          state
-      | Continue -> (
-        (* Unconditionally jump to iteration statement condition label. *)
-        match state.iter_stmt_start_label with
-        | Some label -> emit_opcode state (FlowControl (UnconditionalJump label))
-        | None -> raise Spacebar_Exception )
-      | Break -> (
-        (* Unconditionally jump to the currently active iteration statement end
-           label. *)
-        match state.iter_stmt_end_label with
-        | Some label -> emit_opcode state (FlowControl (UnconditionalJump label))
-        | None -> raise Spacebar_Exception )
-      | Return x' -> (
-        match x'.expression with
-        | Some x'' ->
-            let state = emit_expression state x'' in
-            emit_opcode state (FlowControl EndSubroutine)
-        | None -> emit_opcode state (FlowControl EndSubroutine) ) )
+    match x with
+    | Goto _ -> state
+    | Continue -> (
+      (* Unconditionally jump to iteration statement condition label. *)
+      match state.iter_stmt_start_label with
+      | Some label -> emit_opcode state (FlowControl (UnconditionalJump label))
+      | None -> raise Spacebar_Exception )
+    | Break -> (
+      (* Unconditionally jump to the currently active iteration statement end
+         label. *)
+      match state.iter_stmt_end_label with
+      | Some label -> emit_opcode state (FlowControl (UnconditionalJump label))
+      | None -> raise Spacebar_Exception )
+    | Return x' -> (
+      match x'.expression with
+      | Some x'' ->
+          let state = emit_expression state x'' in
+          emit_opcode state (FlowControl EndSubroutine)
+      | None -> emit_opcode state (FlowControl EndSubroutine) ) )
 
 (* Emit a function definition. *)
 and emit_fn_def state (fn_def : function_definition) =
   (* Add the function to the symbol table. *)
   let fn_name = identifier fn_def.declarator in
   let state, label = add_func_s state fn_name in
-  Printf.eprintf "Found function %s with label %d\n" fn_name label ;
   (* Add the function arguments to the symbol table. *)
   let state =
     match fn_def.declarator.direct_declarator with
@@ -847,14 +799,10 @@ and emit_fn_def state (fn_def : function_definition) =
         (* Add arguments to symbol table. *)
         List.fold_left
           (fun acc x ->
-            Printf.eprintf "Adding fn_arg %s for fn %s to symbol table\n" x
-              fn_name ;
             let state, _ = add_func_arg_s acc fn_name x 1 in
             state )
           state args
-    | _ ->
-        Printf.eprintf "Unexpected declarator\n" ;
-        state
+    | _ -> state
   in
   (* Mark the function. *)
   let state = emit_opcode state (FlowControl (Mark label)) in
@@ -882,14 +830,9 @@ and emit_declaration state declaration =
     in
     (* Look up or add the name to the symbol table. *)
     let name = identifier init_declarator.declarator in
-    let state, offset = add_local_var_s state "empty" name 1 in
-    Printf.eprintf "Name %s at offset %d\n" name offset ;
+    let state, _ = add_local_var_s state "empty" name 1 in
     (* Store the initial value if we had one. *)
-    Printf.eprintf "delcaration has_init? %b\n" has_init ;
-    if has_init then (
-      Printf.eprintf "emitting stack manipulation ops \n" ;
-      store_stack state )
-    else state
+    if has_init then store_stack state else state
   in
   let emit_array_init_decl state (init_decl : init_declarator) =
     (* Look up or add the name to the symbol table. *)
@@ -932,12 +875,8 @@ and emit_declaration state declaration =
 
 let emit_external_declaration state ast =
   match ast with
-  | FunctionDefinition x ->
-      Printf.eprintf "emit_external_declaration: FunctionDefinition\n" ;
-      emit_fn_def state x
-  | Declaration x ->
-      Printf.eprintf "emit_external_declaration: FunctionDefinition\n" ;
-      emit_declaration state x
+  | FunctionDefinition x -> emit_fn_def state x
+  | Declaration x -> emit_declaration state x
 
 let emit_prog_prolog state =
   (* Set up rsp and rbp call main then end the program. *)
