@@ -51,13 +51,42 @@ let test_add_function_argument _ =
   assert_equal (-3) b_offset ;
   assert_equal (-16) c_offset
 
-(* Add local variables to the symbol table. *)
-let test_add_local_variable _ =
+(* Push and pop scopes to and from the symbol table. *)
+let test_local_variables _ =
   let symbol_table = new_symbol_table in
-  let _, symbol_table = add_func symbol_table "foo" in
-  let a_offset, symbol_table = add_local_var symbol_table "foo" "a" 8 in
-  let b_offset, _ = add_local_var symbol_table "foo" "b" 1 in
-  assert_equal 0 a_offset ; assert_equal 8 b_offset
+  (* Push a new scope to the symbol table. *)
+  let symbol_table = push_scope symbol_table in
+  (* Push a symbol 'foo' to the new scope. *)
+  let foo_0_offset, symbol_table = add_local_var symbol_table "foo" 1 in
+  (* Push a symbol 'bar to the new scope. *)
+  let bar_0_offset, _ = add_local_var symbol_table "bar" 1 in
+  (* Push a new scope to the symbol table. *)
+  let symbol_table = push_scope symbol_table in
+  (* Push a symbol 'foo' to the new scope. *)
+  let foo_1_offset, _ = add_local_var symbol_table "foo" 1 in
+  (* Push a new scope to the symbol table. *)
+  let symbol_table = push_scope symbol_table in
+  (* Push a symbol 'foo' to the new scope. *)
+  let foo_2_offset, symbol_table = add_local_var symbol_table "foo" 1 in
+  (* Look up symbol 'foo' in the current scope. *)
+  let foo_3_offset = find_offset symbol_table "foo" in
+  (* Pop the top scope from the symbol table. *)
+  let symbol_table = pop_scope symbol_table in
+  (* Look up symbol 'foo' in the current scope. *)
+  let foo_4_offset = find_offset symbol_table "foo" in
+  (* Pop the top scope from the symbol table. *)
+  let symbol_table = pop_scope symbol_table in
+  (* Query the offset of the remaining 'foo' and 'bar'. *)
+  let foo_5_offset = find_offset symbol_table "foo" in
+  let bar_1_offset = find_offset symbol_table "bar" in
+  assert_equal 0 foo_0_offset ;
+  assert_equal 1 bar_0_offset ;
+  assert_equal 2 foo_1_offset ;
+  assert_equal 3 foo_2_offset ;
+  assert_equal 3 foo_3_offset ;
+  assert_equal 2 foo_4_offset ;
+  assert_equal 0 foo_5_offset ;
+  assert_equal 1 bar_1_offset
 
 let suite =
   "SymbolTests"
@@ -65,8 +94,8 @@ let suite =
        ; "test_find_function" >:: test_find_function
        ; "test_add_multiple_functions" >:: test_add_multiple_functions
        ; "test_add_function_argument" >:: test_add_function_argument
-       ; "test_add_local_variable" >:: test_add_local_variable
        ; "test_add_main_function" >:: test_add_main_function
-       ; "test_find_main_function" >:: test_find_main_function ]
+       ; "test_find_main_function" >:: test_find_main_function
+       ; "test_local_variables" >:: test_local_variables ]
 
 let () = run_test_tt_main suite

@@ -8,6 +8,18 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     cat test/basic_main.c | "${spacebar_bin}" | wspace /dev/stdin
 }
 
+@test "basic_stack_allocation" {
+    output="$(cat test/basic_stack_allocation.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "41 102 426 Done." ]
+}
+
+@test "basic_scope" {
+    output="$(cat test/basic_scope.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "41 42 43 44 45 44 43 42 41 Done." ]
+}
+
 @test "basic_input" {
     tmp_file=$(tempfile)
     cat test/basic_input.c | "${spacebar_bin}" >> ${tmp_file}
@@ -82,6 +94,12 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     [ "$output" == "5 6 7 8 9 Done." ]
 }
 
+@test "basic_nested_for" {
+    output="$(cat test/basic_nested_for.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
+    echo $output
+    [ "$output" == "0 0 0 1 0 2 0 3 1 0 1 1 1 2 1 3 2 0 2 1 2 2 2 3 3 0 3 1 3 2 3 3 Done." ]
+}
+
 @test "basic_arith" {
     output="$(cat test/basic_arith.c | "${spacebar_bin}" | wspace /dev/stdin | head -n 1)"
     echo $output
@@ -141,3 +159,4 @@ spacebar_bin="${root_dir}/_build/default/spacebar.exe"
     echo $output
     [ "$output" == "233 Done." ]
 }
+

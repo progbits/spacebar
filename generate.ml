@@ -31,6 +31,16 @@ let add_label_s state =
   let label, symbol_table = add_label state.symbol_table in
   ({state with symbol_table}, label)
 
+(* Wrap Symbol.push_scope *)
+let push_scope_s state =
+  let symbol_table = push_scope state.symbol_table in
+  {state with symbol_table}
+
+(* Wrap Symbol.pop_scope *)
+let pop_scope_s state =
+  let symbol_table = pop_scope state.symbol_table in
+  {state with symbol_table}
+
 (* Wrap Symbol.add_func *)
 let add_func_s state name =
   let label, symbol_table = add_func state.symbol_table name in
@@ -49,14 +59,14 @@ let add_func_arg_s state func_name arg_name size =
   ({state with symbol_table}, offset)
 
 (* Wrap Symbol.add_local_var*)
-let add_local_var_s state func_name name size =
-  let offset, symbol_table =
-    add_local_var state.symbol_table func_name name size
-  in
+let add_local_var_s state name size =
+  let offset, symbol_table = add_local_var state.symbol_table name size in
   ({state with symbol_table}, offset)
 
 (* Wrap Symbol.find_offset*)
-let find_offset_s state name = find_offset state.symbol_table name
+let find_offset_s state name =
+  let offset = find_offset state.symbol_table name in
+  offset
 
 (* Emit a new opcode and return the resulting state. *)
 let emit_opcode state opcode = {state with ops= opcode :: state.ops}
@@ -123,7 +133,7 @@ let rec identifier (declarator : declarator) =
   match_direct_declarator declarator.direct_declarator
 
 (* Store a value on the stack. *)
-let store_stack state =
+let store_rsp_rel state =
   let ops =
     [ StackManipulation (Push 0)
     ; HeapAccess Retrieve
@@ -144,6 +154,18 @@ let store_stack_offset state =
   let ops =
     [ StackManipulation (Push 1)
     ; HeapAccess Retrieve
+    ; Arithmetic Addtion
+    ; StackManipulation Swap
+    ; HeapAccess Store ]
+  in
+  List.fold_left emit_opcode state ops
+
+(* Store the value on top of the stack at [rbp + offset] *)
+let store_rbp_rel state offset =
+  let ops =
+    [ StackManipulation (Push 1)
+    ; HeapAccess Retrieve
+    ; StackManipulation (Push offset)
     ; Arithmetic Addtion
     ; StackManipulation Swap
     ; HeapAccess Store ]
@@ -198,7 +220,7 @@ let push_rbp state =
   let state = emit_opcode state (StackManipulation (Push 1)) in
   let state = emit_opcode state (HeapAccess Retrieve) in
   (* Store the value of rsp on the stack. *)
-  store_stack state
+  store_rsp_rel state
 
 (* Load the value of rbp from the stack. This is executed as part of a function
    epilogue, where the value of rbp is expected at (rsp - 1). *)
@@ -342,7 +364,7 @@ and emit_postfix_expression state x lvalue =
         | h :: t ->
             (* Compute the expression the place the result on top of the stack. *)
             let state = emit_assignment_expression state h in
-            let state = store_stack state in
+            let state = store_rsp_rel state in
             process_arguments state t
       in
       (* Assume our postfix expression is an identifier. *)
@@ -393,6 +415,8 @@ and unary_expr_offset state expr =
       match x' with
       | IdentifierExpr x'' -> find_offset_s state x''
       | _ -> raise Spacebar_Exception )
+    | ArrayAccess {postfix_expression= expr; _} ->
+        unary_expr_offset state (PostfixExpression expr)
     | _ -> raise Spacebar_Exception )
   | _ -> raise Spacebar_Exception
 
@@ -654,7 +678,10 @@ let rec emit_block_item state (block_item : block_item) =
 and emit_statement state (statement : statement) =
   match statement with
   | LabeledStatement _ -> state
-  | CompoundStatement x -> List.fold_left emit_block_item state x
+  | CompoundStatement x ->
+      let state = push_scope_s state in
+      let state = List.fold_left emit_block_item state x in
+      pop_scope_s state
   | ExpressionStatement x' -> (
     match x' with Some x'' -> emit_expression state x'' | None -> state )
   | SelectionStatement x -> (
@@ -720,12 +747,15 @@ and emit_statement state (statement : statement) =
         (* End label *)
         emit_opcode state (FlowControl (Mark end_label))
     | For x' ->
-        let state, condition_label = add_label_s state in
-        let state, end_label = add_label_s state in
+        (* Push a new block scope. *)
+        let state = push_scope_s state in
+        let state, loop_start_label = add_label_s state in
+        let state, loop_end_label = add_label_s state in
+        loop_end_label ;
         let state =
           { state with
-            iter_stmt_end_label= Some end_label
-          ; iter_stmt_start_label= Some condition_label }
+            iter_stmt_end_label= Some loop_end_label
+          ; iter_stmt_start_label= Some loop_start_label }
         in
         (* Emit loop variable declaration. *)
         let state =
@@ -737,7 +767,7 @@ and emit_statement state (statement : statement) =
           | None -> state
         in
         (* Mark start of loop, before condition. *)
-        let state = emit_opcode state (FlowControl (Mark condition_label)) in
+        let state = emit_opcode state (FlowControl (Mark loop_start_label)) in
         (* Evaluate condition. *)
         let state =
           match x'.condition with
@@ -745,7 +775,7 @@ and emit_statement state (statement : statement) =
           | None -> state
         in
         (* Jump if condition is not valid. *)
-        let state = emit_opcode state (FlowControl (JumpZero end_label)) in
+        let state = emit_opcode state (FlowControl (JumpZero loop_end_label)) in
         (* Emit body. *)
         let state = emit_statement state x'.body in
         (* Evaluate iteration statement. *)
@@ -756,10 +786,12 @@ and emit_statement state (statement : statement) =
         in
         (* Unconditional jump back to condition. *)
         let state =
-          emit_opcode state (FlowControl (UnconditionalJump condition_label))
+          emit_opcode state (FlowControl (UnconditionalJump loop_start_label))
         in
         (* End label *)
-        emit_opcode state (FlowControl (Mark end_label)) )
+        let state = emit_opcode state (FlowControl (Mark loop_end_label)) in
+        (* Pop the loop block scope. *)
+        pop_scope_s state )
   | JumpStatement x -> (
     match x with
     | Goto _ -> state
@@ -780,6 +812,20 @@ and emit_statement state (statement : statement) =
           let state = emit_expression state x'' in
           emit_opcode state (FlowControl EndSubroutine)
       | None -> emit_opcode state (FlowControl EndSubroutine) ) )
+
+(* Every function gets a fixed size amount of stack space for locals. *)
+and calc_func_stack_size = 8
+
+and reserve_stack_space state size =
+  let rec do_reserve state size =
+    match size with
+    | 0 -> state
+    | n ->
+        let state = emit_opcode state (StackManipulation (Push 0)) in
+        let state = store_rsp_rel state in
+        do_reserve state (n - 1)
+  in
+  do_reserve state size
 
 (* Emit a function definition. *)
 and emit_fn_def state (fn_def : function_definition) =
@@ -806,9 +852,15 @@ and emit_fn_def state (fn_def : function_definition) =
   in
   (* Mark the function. *)
   let state = emit_opcode state (FlowControl (Mark label)) in
-  (* Emit the function definition. *)
+  (* Push a new scope and emit the function definition. *)
+  let state = push_scope_s state in
+  (* Calculate stack space required for local variables. *)
+  let state = reserve_stack_space state calc_func_stack_size in
+  (* Allocate stack space for local variables. *)
   let state = List.fold_left emit_block_item state fn_def.compound_statement in
-  emit_opcode state (FlowControl EndSubroutine)
+  let state = emit_opcode state (FlowControl EndSubroutine) in
+  (* Pop the function scope. *)
+  pop_scope_s state
 
 (* Return true if a declaration is an array declaration. *)
 and is_array_decl (decl : init_declarator) =
@@ -830,9 +882,9 @@ and emit_declaration state declaration =
     in
     (* Look up or add the name to the symbol table. *)
     let name = identifier init_declarator.declarator in
-    let state, _ = add_local_var_s state "empty" name 1 in
+    let state, offset = add_local_var_s state name 1 in
     (* Store the initial value if we had one. *)
-    if has_init then store_stack state else state
+    if has_init then store_rbp_rel state offset else state
   in
   let emit_array_init_decl state (init_decl : init_declarator) =
     (* Look up or add the name to the symbol table. *)
@@ -842,10 +894,26 @@ and emit_declaration state declaration =
     let size =
       match init_decl.declarator.direct_declarator with
       | ArrayDeclarator x ->
+          let _ =
+            match x.direct_declarator with
+            | Identifier _ ->
+                Printf.eprintf
+                  "ArrayDeclarator with an Identifier direct_declarator\n"
+            | Declarator _ ->
+                Printf.eprintf
+                  "ArrayDeclarator with a nested Declarator direct_declarator\n"
+            | ArrayDeclarator _ ->
+                Printf.eprintf
+                  "ArrayDeclarator with a nested ArrayDeclarator \
+                   direct_declarator\n"
+            | _ ->
+                Printf.eprintf
+                  "ArrayDeclarator another type of direct_declarator\n"
+          in
           constant_from_assignment_expr x.assignment_expression
       | _ -> raise Spacebar_Exception
     in
-    let state, _ = add_local_var_s state "empty" name size in
+    let state, _ = add_local_var_s state name size in
     (* Most interpreters use a hash table like structure for tracking stack
        memory, so the only way to 'allocate' an array is to zero out the amount
        of stack we want. *)
@@ -854,7 +922,7 @@ and emit_declaration state declaration =
       | 0 -> state
       | n ->
           let state = emit_opcode state (StackManipulation (Push 0)) in
-          let state = store_stack state in
+          let state = store_rsp_rel state in
           stack_allocate state (n - 1)
     in
     stack_allocate state size
