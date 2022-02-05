@@ -132,7 +132,7 @@ let rec identifier (declarator : declarator) =
   in
   match_direct_declarator declarator.direct_declarator
 
-(* Store a value on the stack. *)
+(* Store a value on the stack relative to rsp. *)
 let store_rsp_rel state =
   let ops =
     [ StackManipulation (Push 0)
@@ -216,10 +216,8 @@ let set_rsp state =
 
 (* Push the value of rbp onto the stack. *)
 let push_rbp state =
-  (* Load the value of rbp. *)
-  let state = emit_opcode state (StackManipulation (Push 1)) in
-  let state = emit_opcode state (HeapAccess Retrieve) in
-  (* Store the value of rsp on the stack. *)
+  let ops = [StackManipulation (Push 1); HeapAccess Retrieve] in
+  let state = List.fold_left emit_opcode state ops in
   store_rsp_rel state
 
 (* Load the value of rbp from the stack. This is executed as part of a function
@@ -227,9 +225,10 @@ let push_rbp state =
 let pop_rbp state =
   (* Load the value of rsp. *)
   let state = load_rbp_rel state (-1) in
-  let state = emit_opcode state (StackManipulation (Push 1)) in
-  let state = emit_opcode state (StackManipulation Swap) in
-  emit_opcode state (HeapAccess Store)
+  let ops =
+    [StackManipulation (Push 1); StackManipulation Swap; HeapAccess Store]
+  in
+  List.fold_left emit_opcode state ops
 
 (* Adjust the stack pointer by `value`. *)
 let add_rsp state value =
@@ -512,21 +511,17 @@ and emit_relational_expression state x =
       let state, negative_label = add_label_s state in
       let state, end_label = add_label_s state in
       let state = emit_relational_expression state x'.relational_expression in
-      (* LHS *)
       let state = emit_shift_expression state x'.shift_expression in
-      (* RHS *)
-      let state = emit_opcode state (Arithmetic Subtraction) in
-      (* LHS - RHS *)
-      let state =
-        emit_opcode state (FlowControl (JumpNegative negative_label))
+      let ops =
+        [ Arithmetic Subtraction
+        ; FlowControl (JumpNegative negative_label)
+        ; StackManipulation (Push 0)
+        ; FlowControl (UnconditionalJump end_label)
+        ; FlowControl (Mark negative_label)
+        ; StackManipulation (Push 1)
+        ; FlowControl (Mark end_label) ]
       in
-      let state = emit_opcode state (StackManipulation (Push 0)) in
-      let state =
-        emit_opcode state (FlowControl (UnconditionalJump end_label))
-      in
-      let state = emit_opcode state (FlowControl (Mark negative_label)) in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      emit_opcode state (FlowControl (Mark end_label))
+      List.fold_left emit_opcode state ops
   | GreaterThanExpression x' ->
       (* True if (lhs - rhs) is NOT negative. *)
       let state, negative_label = add_label_s state in
@@ -534,21 +529,20 @@ and emit_relational_expression state x =
       let state, end_label = add_label_s state in
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_shift_expression state x'.shift_expression in
-      let state = emit_opcode state (Arithmetic Subtraction) in
-      let state = emit_opcode state (StackManipulation Duplicate) in
-      let state =
-        emit_opcode state (FlowControl (JumpNegative negative_label))
+      let ops =
+        [ Arithmetic Subtraction
+        ; StackManipulation Duplicate
+        ; FlowControl (JumpNegative negative_label)
+        ; FlowControl (JumpZero zero_label)
+        ; StackManipulation (Push 1)
+        ; FlowControl (UnconditionalJump end_label)
+        ; FlowControl (Mark negative_label)
+        ; StackManipulation Discard
+        ; FlowControl (Mark zero_label)
+        ; StackManipulation (Push 0)
+        ; FlowControl (Mark end_label) ]
       in
-      let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      let state =
-        emit_opcode state (FlowControl (UnconditionalJump end_label))
-      in
-      let state = emit_opcode state (FlowControl (Mark negative_label)) in
-      let state = emit_opcode state (StackManipulation Discard) in
-      let state = emit_opcode state (FlowControl (Mark zero_label)) in
-      let state = emit_opcode state (StackManipulation (Push 0)) in
-      emit_opcode state (FlowControl (Mark end_label))
+      List.fold_left emit_opcode state ops
   | LessThanEqualThanExpression x' ->
       let state = emit_relational_expression state x'.relational_expression in
       let state = emit_shift_expression state x'.shift_expression in
@@ -566,15 +560,16 @@ and emit_equality_expression state x =
       let state, end_label = add_label_s state in
       let state = emit_equality_expression state x'.equality_expression in
       let state = emit_relational_expression state x'.relational_expression in
-      let state = emit_opcode state (Arithmetic Subtraction) in
-      let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
-      let state = emit_opcode state (StackManipulation (Push 0)) in
-      let state =
-        emit_opcode state (FlowControl (UnconditionalJump end_label))
+      let ops =
+        [ Arithmetic Subtraction
+        ; FlowControl (JumpZero zero_label)
+        ; StackManipulation (Push 0)
+        ; FlowControl (UnconditionalJump end_label)
+        ; FlowControl (Mark zero_label)
+        ; StackManipulation (Push 1)
+        ; FlowControl (Mark end_label) ]
       in
-      let state = emit_opcode state (FlowControl (Mark zero_label)) in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      emit_opcode state (FlowControl (Mark end_label))
+      List.fold_left emit_opcode state ops
   | NotEqualToExpression x' ->
       let state, zero_label = add_label_s state in
       let state, end_label = add_label_s state in
@@ -874,48 +869,21 @@ and emit_declaration state declaration =
     (* Emit the (optional) initializer. *)
     let state, has_init =
       match init_declarator._initializer with
-      | Some x ->
-          let state = emit_assignment_expression state x in
-          (state, true)
+      | Some x -> (emit_assignment_expression state x, true)
       | None -> (state, false)
     in
-    (* Look up or add the name to the symbol table. *)
-    let name = identifier init_declarator.declarator in
-    let state, offset = add_local_var_s state name 1 in
+    (* Add the identifier to the symbol table. *)
+    let id = identifier init_declarator.declarator in
+    let state, offset = add_local_var_s state id 1 in
     (* Store the initial value if we had one. *)
     if has_init then store_rbp_rel state offset else state
   in
+  (* Emit an array declarator, returning the new state of the generator. *)
   let emit_array_init_decl state (init_decl : init_declarator) =
-    (* Look up or add the name to the symbol table. *)
-    let name = identifier init_decl.declarator in
-    (* At the moment we assume array sizes are just constant primary
-       expressions. *)
-    let size =
-      match init_decl.declarator.direct_declarator with
-      | ArrayDeclarator x ->
-          let _ =
-            match x.direct_declarator with
-            | Identifier _ ->
-                Printf.eprintf
-                  "ArrayDeclarator with an Identifier direct_declarator\n"
-            | Declarator _ ->
-                Printf.eprintf
-                  "ArrayDeclarator with a nested Declarator direct_declarator\n"
-            | ArrayDeclarator _ ->
-                Printf.eprintf
-                  "ArrayDeclarator with a nested ArrayDeclarator \
-                   direct_declarator\n"
-            | _ ->
-                Printf.eprintf
-                  "ArrayDeclarator another type of direct_declarator\n"
-          in
-          constant_from_assignment_expr x.assignment_expression
-      | _ -> raise Spacebar_Exception
-    in
-    let state, _ = add_local_var_s state name size in
-    (* Most interpreters use a hash table like structure for tracking stack
-       memory, so the only way to 'allocate' an array is to zero out the amount
-       of stack we want. *)
+    (* Most Whitespace interpreters use a hash table like structure for tracking
+       stack memory and therefore don't do so well when reading memory locations
+       that have not previously been written. To work around this we 'allocate'
+       an array on the stack by zeroing out the amount of stack space we want. *)
     let rec stack_allocate state size =
       match size with
       | 0 -> state
@@ -924,15 +892,22 @@ and emit_declaration state declaration =
           let state = store_rsp_rel state in
           stack_allocate state (n - 1)
     in
+    let name = identifier init_decl.declarator in
+    (* Assume array sizes are constant primary expressions. *)
+    let size =
+      match init_decl.declarator.direct_declarator with
+      | ArrayDeclarator x ->
+          constant_from_assignment_expr x.assignment_expression
+      | _ ->
+          Printf.eprintf "Unsupported array size expression" ;
+          raise Spacebar_Exception
+    in
+    let state, _ = add_local_var_s state name size in
     stack_allocate state size
   in
-  (* Strip out any array declarations, so we can handle these seperatly. *)
-  let non_array_decl =
-    List.filter
-      (fun x -> not (is_array_decl x))
-      declaration.init_declarator_list
+  let array_decl, non_array_decl =
+    List.partition (fun x -> is_array_decl x) declaration.init_declarator_list
   in
-  let array_decl = List.filter is_array_decl declaration.init_declarator_list in
   (* Handle normal declarations. *)
   let state =
     List.fold_left emit_non_array_init_declarator state non_array_decl
@@ -945,8 +920,8 @@ let emit_external_declaration state ast =
   | FunctionDefinition x -> emit_fn_def state x
   | Declaration x -> emit_declaration state x
 
+(* Emit program prolog. Set up rsp and rbp, call main then end the program. *)
 let emit_prog_prolog state =
-  (* Set up rsp and rbp call main then end the program. *)
   let ops =
     [ StackManipulation (Push 0)
     ; StackManipulation (Push 2)
@@ -965,8 +940,8 @@ let emit_build_ins state =
   let state = emit_putc state in
   emit_geti state
 
-(* Generate Whitespace bytecode from an abstract syntac tree. *)
-let generate (x : external_declaration list) =
+(* Generate Whitespace bytecode from an abstract syntax tree. *)
+let generate (ast : external_declaration list) =
   let state =
     { ops= []
     ; symbol_table= new_symbol_table
@@ -975,5 +950,5 @@ let generate (x : external_declaration list) =
   in
   let state = emit_prog_prolog state in
   let state = emit_build_ins state in
-  let state = List.fold_left emit_external_declaration state x in
+  let state = List.fold_left emit_external_declaration state ast in
   List.rev state.ops
