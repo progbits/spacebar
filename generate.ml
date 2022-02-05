@@ -751,7 +751,6 @@ and emit_statement state (statement : statement) =
         let state = push_scope_s state in
         let state, loop_start_label = add_label_s state in
         let state, loop_end_label = add_label_s state in
-        loop_end_label ;
         let state =
           { state with
             iter_stmt_end_label= Some loop_end_label
