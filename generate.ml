@@ -216,8 +216,10 @@ let set_rsp state =
 
 (* Push the value of rbp onto the stack. *)
 let push_rbp state =
-  let ops = [StackManipulation (Push 1); HeapAccess Retrieve] in
-  let state = List.fold_left emit_opcode state ops in
+  let state =
+    List.fold_left emit_opcode state
+      [StackManipulation (Push 1); HeapAccess Retrieve]
+  in
   store_rsp_rel state
 
 (* Load the value of rbp from the stack. This is executed as part of a function
@@ -296,9 +298,7 @@ let emit_geti state =
   let state = emit_opcode state (FlowControl (Mark label)) in
   (* Load the output location and read the number. *)
   let state = load_rbp_rel state (-2) in
-  let state = emit_opcode state (IO ReadNumber) in
-  let state = emit_opcode state (FlowControl EndSubroutine) in
-  state
+  List.fold_left emit_opcode state [IO ReadNumber; FlowControl EndSubroutine]
 
 (* Emit the built-in function puti and return the function label. *)
 let emit_puti state =
@@ -307,9 +307,7 @@ let emit_puti state =
   let state = emit_opcode state (FlowControl (Mark label)) in
   (* Load and output the argument. *)
   let state = load_rbp_rel state (-2) in
-  let state = emit_opcode state (IO OutputNumber) in
-  let state = emit_opcode state (FlowControl EndSubroutine) in
-  state
+  List.fold_left emit_opcode state [IO OutputNumber; FlowControl EndSubroutine]
 
 (* Emit the built-in function putc and return the function label. *)
 let emit_putc state =
@@ -318,44 +316,45 @@ let emit_putc state =
   let state = emit_opcode state (FlowControl (Mark label)) in
   (* Load and output the argument. *)
   let state = load_rbp_rel state (-2) in
-  let state = emit_opcode state (IO OutputCharacter) in
-  let state = emit_opcode state (FlowControl EndSubroutine) in
-  state
+  List.fold_left emit_opcode state
+    [IO OutputCharacter; FlowControl EndSubroutine]
 
 (* Return an identifier from a postfix expression. *)
 let id_from_postfix postfix_expr =
   match postfix_expr with
-  | PrimaryExpression x'' -> (
-    match x'' with IdentifierExpr x''' -> x''' | _ -> raise Spacebar_Exception )
+  | PrimaryExpression x -> (
+    match x with IdentifierExpr x' -> x' | _ -> raise Spacebar_Exception )
   | _ -> raise Spacebar_Exception
 
 (* Emit opcodes for a primary expression. *)
 let rec emit_primary_expression state expr lvalue =
   match expr with
-  | IdentifierExpr x' ->
-      let offset = find_offset_s state x' in
+  | IdentifierExpr x ->
+      let offset = find_offset_s state x in
       if lvalue then emit_opcode state (StackManipulation (Push offset))
       else load_rbp_rel state offset
-  | Constant x' -> emit_opcode state (StackManipulation (Push x'))
-  | Expression x' -> emit_expression state x'
+  | Constant x -> emit_opcode state (StackManipulation (Push x))
+  | Expression x -> emit_expression state x
   | _ -> state
 
 (* Emit a postfix expression. *)
-and emit_postfix_expression state x lvalue =
-  match x with
-  | PrimaryExpression x' -> emit_primary_expression state x' lvalue
-  | ArrayAccess x' ->
+and emit_postfix_expression state expr lvalue =
+  match expr with
+  | PrimaryExpression x -> emit_primary_expression state x lvalue
+  | ArrayAccess x ->
       (* Emit the index expression. *)
-      let state = emit_expression state x'.expression in
+      let state = emit_expression state x.expression in
       (* Get the offset of the array start. *)
       let offset =
-        unary_expr_offset state (PostfixExpression x'.postfix_expression)
+        unary_expr_offset state (PostfixExpression x.postfix_expression)
       in
       (* Add the index to the offset. *)
-      let state = emit_opcode state (StackManipulation (Push offset)) in
-      let state = emit_opcode state (Arithmetic Addtion) in
+      let state =
+        List.fold_left emit_opcode state
+          [StackManipulation (Push offset); Arithmetic Addtion]
+      in
       if lvalue then state else load_rbp_rel_stack state
-  | FunctionCall x' ->
+  | FunctionCall x ->
       (* Store the function arguments relative to the stack pointer. *)
       let rec process_arguments state arguments =
         match arguments with
@@ -367,10 +366,10 @@ and emit_postfix_expression state x lvalue =
             process_arguments state t
       in
       (* Assume our postfix expression is an identifier. *)
-      let function_name = id_from_postfix x'.postfix_expression in
+      let function_name = id_from_postfix x.postfix_expression in
       (* Push the function arguments on the stack. *)
       let state =
-        process_arguments state (List.rev x'.argument_expression_list)
+        process_arguments state (List.rev x.argument_expression_list)
       in
       (* Store the current frame pointer on the stack. *)
       let state = push_rbp state in
@@ -383,25 +382,31 @@ and emit_postfix_expression state x lvalue =
       let state = restore_rsp state in
       let state = pop_rbp state in
       sub_rsp state 1
-  | PostfixIncrement x' ->
+  | PostfixIncrement x ->
       let offset =
-        unary_expr_offset state (PostfixExpression x'.postfix_expression)
+        unary_expr_offset state (PostfixExpression x.postfix_expression)
       in
       let state = load_rbp_rel state offset in
-      let state = emit_opcode state (StackManipulation Duplicate) in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      let state = emit_opcode state (Arithmetic Addtion) in
-      let state = emit_opcode state (StackManipulation (Push offset)) in
+      let state =
+        List.fold_left emit_opcode state
+          [ StackManipulation Duplicate
+          ; StackManipulation (Push 1)
+          ; Arithmetic Addtion
+          ; StackManipulation (Push offset) ]
+      in
       store_stack_offset state
-  | PostfixDecrement x' ->
+  | PostfixDecrement x ->
       let offset =
-        unary_expr_offset state (PostfixExpression x'.postfix_expression)
+        unary_expr_offset state (PostfixExpression x.postfix_expression)
       in
       let state = load_rbp_rel state offset in
-      let state = emit_opcode state (StackManipulation Duplicate) in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      let state = emit_opcode state (Arithmetic Subtraction) in
-      let state = emit_opcode state (StackManipulation (Push offset)) in
+      let state =
+        List.fold_left emit_opcode state
+          [ StackManipulation Duplicate
+          ; StackManipulation (Push 1)
+          ; Arithmetic Subtraction
+          ; StackManipulation (Push offset) ]
+      in
       store_stack_offset state
   | _ -> state
 
@@ -419,35 +424,41 @@ and unary_expr_offset state expr =
     | _ -> raise Spacebar_Exception )
   | _ -> raise Spacebar_Exception
 
-and emit_unary_expression state x lvalue =
-  match x with
-  | PostfixExpression x' -> emit_postfix_expression state x' lvalue
-  | PrefixIncrement x' ->
-      let offset = unary_expr_offset state x'.unary_expression in
+and emit_unary_expression state expr lvalue =
+  match expr with
+  | PostfixExpression x -> emit_postfix_expression state x lvalue
+  | PrefixIncrement x ->
+      let offset = unary_expr_offset state x.unary_expression in
       let state = load_rbp_rel state offset in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      let state = emit_opcode state (Arithmetic Addtion) in
-      let state = emit_opcode state (StackManipulation Duplicate) in
-      let state = emit_opcode state (StackManipulation (Push offset)) in
+      let state =
+        List.fold_left emit_opcode state
+          [ StackManipulation (Push 1)
+          ; Arithmetic Addtion
+          ; StackManipulation Duplicate
+          ; StackManipulation (Push offset) ]
+      in
       store_stack_offset state
-  | PrefixDecrement x' ->
-      let offset = unary_expr_offset state x'.unary_expression in
+  | PrefixDecrement x ->
+      let offset = unary_expr_offset state x.unary_expression in
       let state = load_rbp_rel state offset in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      let state = emit_opcode state (Arithmetic Subtraction) in
-      let state = emit_opcode state (StackManipulation Duplicate) in
-      let state = emit_opcode state (StackManipulation (Push offset)) in
+      let state =
+        List.fold_left emit_opcode state
+          [ StackManipulation (Push 1)
+          ; Arithmetic Subtraction
+          ; StackManipulation Duplicate
+          ; StackManipulation (Push offset) ]
+      in
       store_stack_offset state
-  | UnaryOperator x' -> (
-    match x'.operator with
+  | UnaryOperator x -> (
+    match x.operator with
     | AddressOf _ ->
         (* Look up the offset of the lvalue expression from rbp. *)
-        let offset = unary_expr_offset state x'.unary_expression in
+        let offset = unary_expr_offset state x.unary_expression in
         (* Emit the absolute address of the expression. *)
         push_abs_addr state offset
     | PointerDereference _ ->
         (* Evaluate the expression so the address is on top of the stack. *)
-        let state = emit_unary_expression state x'.unary_expression lvalue in
+        let state = emit_unary_expression state x.unary_expression lvalue in
         (* Load the value at the absolute address. *)
         emit_opcode state (HeapAccess Retrieve)
     | UnaryPlus _ ->
@@ -455,64 +466,64 @@ and emit_unary_expression state x lvalue =
         state
     | UnaryMinus _ ->
         let state = emit_opcode state (StackManipulation (Push 0)) in
-        let state = emit_unary_expression state x'.unary_expression lvalue in
+        let state = emit_unary_expression state x.unary_expression lvalue in
         emit_opcode state (Arithmetic Subtraction)
     | UnaryBitwiseNot _ -> state
     | UnaryNot _ -> state )
 
-and emit_multiplicative_expression state x =
-  match x with
-  | CastExpression x' -> emit_unary_expression state x' false
-  | MultiplicativeProduct x' ->
+and emit_multiplicative_expression state expr =
+  match expr with
+  | CastExpression x -> emit_unary_expression state x false
+  | MultiplicativeProduct x ->
       let state =
-        emit_multiplicative_expression state x'.multiplicative_expression
+        emit_multiplicative_expression state x.multiplicative_expression
       in
-      let state = emit_unary_expression state x'.cast_expression false in
+      let state = emit_unary_expression state x.cast_expression false in
       emit_opcode state (Arithmetic Multiplication)
-  | MultiplicativeDivision x' ->
+  | MultiplicativeDivision x ->
       let state =
-        emit_multiplicative_expression state x'.multiplicative_expression
+        emit_multiplicative_expression state x.multiplicative_expression
       in
-      let state = emit_unary_expression state x'.cast_expression false in
+      let state = emit_unary_expression state x.cast_expression false in
       emit_opcode state (Arithmetic Division)
-  | MultiplicativeRemainder x' ->
+  | MultiplicativeRemainder x ->
       let state =
-        emit_multiplicative_expression state x'.multiplicative_expression
+        emit_multiplicative_expression state x.multiplicative_expression
       in
-      let state = emit_unary_expression state x'.cast_expression false in
+      let state = emit_unary_expression state x.cast_expression false in
       emit_opcode state (Arithmetic Modulo)
 
-and emit_additive_expression state x =
-  match x with
-  | MultiplicativeExpression x' -> emit_multiplicative_expression state x'
-  | AdditiveAdditionExpression x' ->
-      let state = emit_additive_expression state x'.additive_expression in
+and emit_additive_expression state expr =
+  match expr with
+  | MultiplicativeExpression x -> emit_multiplicative_expression state x
+  | AdditiveAdditionExpression x ->
+      let state = emit_additive_expression state x.additive_expression in
       let state =
-        emit_multiplicative_expression state x'.multiplicative_expression
+        emit_multiplicative_expression state x.multiplicative_expression
       in
       emit_opcode state (Arithmetic Addtion)
-  | AdditiveSubtractionExpression x' ->
-      let state = emit_additive_expression state x'.additive_expression in
+  | AdditiveSubtractionExpression x ->
+      let state = emit_additive_expression state x.additive_expression in
       let state =
-        emit_multiplicative_expression state x'.multiplicative_expression
+        emit_multiplicative_expression state x.multiplicative_expression
       in
       emit_opcode state (Arithmetic Subtraction)
 
-and emit_shift_expression state x =
-  match x with
-  | AdditiveExpression x' -> emit_additive_expression state x'
+and emit_shift_expression state expr =
+  match expr with
+  | AdditiveExpression x -> emit_additive_expression state x
   | _ -> state
 
-and emit_relational_expression state x =
-  match x with
-  | ShiftExpression x' -> emit_shift_expression state x'
-  | LessThanExpression x' ->
+and emit_relational_expression state expr =
+  match expr with
+  | ShiftExpression x -> emit_shift_expression state x
+  | LessThanExpression x ->
       (* True if (lhs - rhs) is negative. *)
       let state, negative_label = add_label_s state in
       let state, end_label = add_label_s state in
-      let state = emit_relational_expression state x'.relational_expression in
-      let state = emit_shift_expression state x'.shift_expression in
-      let ops =
+      let state = emit_relational_expression state x.relational_expression in
+      let state = emit_shift_expression state x.shift_expression in
+      List.fold_left emit_opcode state
         [ Arithmetic Subtraction
         ; FlowControl (JumpNegative negative_label)
         ; StackManipulation (Push 0)
@@ -520,16 +531,14 @@ and emit_relational_expression state x =
         ; FlowControl (Mark negative_label)
         ; StackManipulation (Push 1)
         ; FlowControl (Mark end_label) ]
-      in
-      List.fold_left emit_opcode state ops
-  | GreaterThanExpression x' ->
+  | GreaterThanExpression x ->
       (* True if (lhs - rhs) is NOT negative. *)
       let state, negative_label = add_label_s state in
       let state, zero_label = add_label_s state in
       let state, end_label = add_label_s state in
-      let state = emit_relational_expression state x'.relational_expression in
-      let state = emit_shift_expression state x'.shift_expression in
-      let ops =
+      let state = emit_relational_expression state x.relational_expression in
+      let state = emit_shift_expression state x.shift_expression in
+      List.fold_left emit_opcode state
         [ Arithmetic Subtraction
         ; StackManipulation Duplicate
         ; FlowControl (JumpNegative negative_label)
@@ -541,26 +550,24 @@ and emit_relational_expression state x =
         ; FlowControl (Mark zero_label)
         ; StackManipulation (Push 0)
         ; FlowControl (Mark end_label) ]
-      in
-      List.fold_left emit_opcode state ops
-  | LessThanEqualThanExpression x' ->
-      let state = emit_relational_expression state x'.relational_expression in
-      let state = emit_shift_expression state x'.shift_expression in
+  | LessThanEqualThanExpression x ->
+      let state = emit_relational_expression state x.relational_expression in
+      let state = emit_shift_expression state x.shift_expression in
       state
-  | GreaterThanEqualExpression x' ->
-      let state = emit_relational_expression state x'.relational_expression in
-      let state = emit_shift_expression state x'.shift_expression in
+  | GreaterThanEqualExpression x ->
+      let state = emit_relational_expression state x.relational_expression in
+      let state = emit_shift_expression state x.shift_expression in
       state
 
-and emit_equality_expression state x =
-  match x with
-  | RelationalExpression x' -> emit_relational_expression state x'
-  | EqualToExpression x' ->
+and emit_equality_expression state expr =
+  match expr with
+  | RelationalExpression x -> emit_relational_expression state x
+  | EqualToExpression x ->
       let state, zero_label = add_label_s state in
       let state, end_label = add_label_s state in
-      let state = emit_equality_expression state x'.equality_expression in
-      let state = emit_relational_expression state x'.relational_expression in
-      let ops =
+      let state = emit_equality_expression state x.equality_expression in
+      let state = emit_relational_expression state x.relational_expression in
+      List.fold_left emit_opcode state
         [ Arithmetic Subtraction
         ; FlowControl (JumpZero zero_label)
         ; StackManipulation (Push 0)
@@ -568,80 +575,77 @@ and emit_equality_expression state x =
         ; FlowControl (Mark zero_label)
         ; StackManipulation (Push 1)
         ; FlowControl (Mark end_label) ]
-      in
-      List.fold_left emit_opcode state ops
-  | NotEqualToExpression x' ->
+  | NotEqualToExpression x ->
       let state, zero_label = add_label_s state in
       let state, end_label = add_label_s state in
-      let state = emit_equality_expression state x'.equality_expression in
-      let state = emit_relational_expression state x'.relational_expression in
-      let state = emit_opcode state (Arithmetic Subtraction) in
-      let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      let state =
-        emit_opcode state (FlowControl (UnconditionalJump end_label))
-      in
-      let state = emit_opcode state (FlowControl (Mark zero_label)) in
-      let state = emit_opcode state (StackManipulation (Push 0)) in
-      emit_opcode state (FlowControl (Mark end_label))
+      let state = emit_equality_expression state x.equality_expression in
+      let state = emit_relational_expression state x.relational_expression in
+      List.fold_left emit_opcode state
+        [ Arithmetic Subtraction
+        ; FlowControl (JumpZero zero_label)
+        ; StackManipulation (Push 1)
+        ; FlowControl (UnconditionalJump end_label)
+        ; FlowControl (Mark zero_label)
+        ; StackManipulation (Push 0)
+        ; FlowControl (Mark end_label) ]
 
-and emit_and_expression state x =
-  match x with
-  | EqualityExpression x' -> emit_equality_expression state x'
+and emit_and_expression state expr =
+  match expr with
+  | EqualityExpression x -> emit_equality_expression state x
   | _ -> state
 
-and emit_exclusive_or_expression state x =
-  match x with AndExpression x' -> emit_and_expression state x' | _ -> state
+and emit_exclusive_or_expression state expr =
+  match expr with AndExpression x -> emit_and_expression state x | _ -> state
 
-and emit_inclusive_or_expression state x =
-  match x with
-  | ExclusiveOr x' -> emit_exclusive_or_expression state x'
+and emit_inclusive_or_expression state expr =
+  match expr with
+  | ExclusiveOr x -> emit_exclusive_or_expression state x
   | _ -> state
 
-and emit_logical_and_expression state x =
-  match x with
-  | InclusiveOrExpression x' -> emit_inclusive_or_expression state x'
-  | LogicalAndExpression x' ->
+and emit_logical_and_expression state expr =
+  match expr with
+  | InclusiveOrExpression x -> emit_inclusive_or_expression state x
+  | LogicalAndExpression x ->
       let state, zero_label = add_label_s state in
       let state, end_label = add_label_s state in
-      let state = emit_logical_and_expression state x'.logical_and_expression in
+      let state = emit_logical_and_expression state x.logical_and_expression in
       let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
       let state =
-        emit_inclusive_or_expression state x'.inclusive_or_expression
+        emit_inclusive_or_expression state x.inclusive_or_expression
       in
-      let state = emit_opcode state (FlowControl (JumpZero zero_label)) in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
-      let state =
-        emit_opcode state (FlowControl (UnconditionalJump end_label))
-      in
-      let state = emit_opcode state (FlowControl (Mark zero_label)) in
-      let state = emit_opcode state (StackManipulation (Push 0)) in
-      emit_opcode state (FlowControl (Mark end_label))
+      List.fold_left emit_opcode state
+        [ FlowControl (JumpZero zero_label)
+        ; StackManipulation (Push 1)
+        ; FlowControl (UnconditionalJump end_label)
+        ; FlowControl (Mark zero_label)
+        ; StackManipulation (Push 0)
+        ; FlowControl (Mark end_label) ]
 
-and emit_logical_or_expression state x =
-  match x with
-  | LogicalOrLogicalAndExpression x' -> emit_logical_and_expression state x'
-  | LogicalOrExpression x' ->
+and emit_logical_or_expression state expr =
+  match expr with
+  | LogicalOrLogicalAndExpression x -> emit_logical_and_expression state x
+  | LogicalOrExpression x ->
       let state, rhs_label = add_label_s state in
       let state, end_label = add_label_s state in
-      let state = emit_logical_or_expression state x'.logical_or_expression in
-      let state = emit_opcode state (FlowControl (JumpZero rhs_label)) in
-      let state = emit_opcode state (StackManipulation (Push 1)) in
+      let state = emit_logical_or_expression state x.logical_or_expression in
       let state =
-        emit_opcode state (FlowControl (UnconditionalJump end_label))
+        List.fold_left emit_opcode state
+          [ FlowControl (JumpZero rhs_label)
+          ; StackManipulation (Push 1)
+          ; FlowControl (UnconditionalJump end_label)
+          ; FlowControl (Mark rhs_label) ]
       in
-      let state = emit_opcode state (FlowControl (Mark rhs_label)) in
-      let state = emit_logical_and_expression state x'.logical_and_expression in
+      let state = emit_logical_and_expression state x.logical_and_expression in
       emit_opcode state (FlowControl (Mark end_label))
 
-and emit_conditional_expression state x =
-  match x with
-  | ContitionalLogicalOrExpression x' -> emit_logical_or_expression state x'
+and emit_conditional_expression state expr =
+  match expr with
+  | ContitionalLogicalOrExpression x -> emit_logical_or_expression state x
   | _ -> state
 
-and emit_assignment_expression state x =
-  match x with
-  | AssignmentConditionalExpression x' -> emit_conditional_expression state x'
+and emit_assignment_expression state expr =
+  match expr with
+  | AssignmentConditionalExpression x -> emit_conditional_expression state x
   | AssignmentOperation x ->
       let state =
         match x.assignment_operator with
@@ -661,9 +665,8 @@ and emit_assignment_expression state x =
       in
       state
 
-and emit_expression state (expression : expression) =
-  match expression with
-  | AssignmentExpression x -> emit_assignment_expression state x
+and emit_expression state (expr : expression) =
+  match expr with AssignmentExpression x -> emit_assignment_expression state x
 
 let rec emit_block_item state (block_item : block_item) =
   match block_item with
@@ -677,8 +680,8 @@ and emit_statement state (statement : statement) =
       let state = push_scope_s state in
       let state = List.fold_left emit_block_item state x in
       pop_scope_s state
-  | ExpressionStatement x' -> (
-    match x' with Some x'' -> emit_expression state x'' | None -> state )
+  | ExpressionStatement x -> (
+    match x with Some x' -> emit_expression state x' | None -> state )
   | SelectionStatement x -> (
     match x with
     | If x' ->
@@ -714,11 +717,9 @@ and emit_statement state (statement : statement) =
         (* Emit body. *)
         let state = emit_statement state x'.body in
         (* Unconditional jump. *)
-        let state =
-          emit_opcode state (FlowControl (UnconditionalJump condition_label))
-        in
-        (* End label *)
-        emit_opcode state (FlowControl (Mark end_label))
+        List.fold_left emit_opcode state
+          [ FlowControl (UnconditionalJump condition_label)
+          ; FlowControl (Mark end_label) ]
     | DoWhile x' ->
         (* Labels for condition and end. *)
         let state, body_label = add_label_s state in
@@ -734,13 +735,10 @@ and emit_statement state (statement : statement) =
         let state = emit_statement state x'.body in
         (* Evaluate expression. *)
         let state = emit_expression state x'.expression in
-        let state = emit_opcode state (FlowControl (JumpZero end_label)) in
-        (* Unconditional jump. *)
-        let state =
-          emit_opcode state (FlowControl (UnconditionalJump body_label))
-        in
-        (* End label *)
-        emit_opcode state (FlowControl (Mark end_label))
+        List.fold_left emit_opcode state
+          [ FlowControl (JumpZero end_label)
+          ; FlowControl (UnconditionalJump body_label)
+          ; FlowControl (Mark end_label) ]
     | For x' ->
         (* Push a new block scope. *)
         let state = push_scope_s state in
