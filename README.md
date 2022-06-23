@@ -23,6 +23,16 @@ dune build
 Once built, the `spacebar.exe` build artifact can be found in the
 `_build/default` directory.
 
+## Usage
+
+Spacebar reads C code from stdin and outputs transpiled Whitespace code to
+stdout. For example, to transpile one of the examples in the functional test
+suite to a file called `out.ws`:
+
+```shell
+cat test/basic_main.c | ./_build/default/spacebar.exe > out.ws
+```
+
 ## Testing
 
 A [Bats](https://github.com/bats-core/bats-core) based functional test suite is
