@@ -2,7 +2,7 @@
 
 (menhir
  (modules parser)
- (flags --fixed-exception --dump --trace))
+ (flags --fixed-exception))
 
 (executable
  (name spacebar)
